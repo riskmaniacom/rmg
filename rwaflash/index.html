@@ -1,1 +1,2227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>신용RWA 속보치 산출 시스템 v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Noto+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#f4f3ef;--bg2:#eceae5;--sf:#fff;--bdr:#dad6cf;--bdr2:#c3beb5;
+  --ink:#1a1916;--ink2:#47443d;--muted:#8a8680;
+  --M:#1a3a5c;--M2:#c45c1a;--M3:#1a6e3a;--Mlt:#e8f0f8;--M2lt:#fdf0e8;--M3lt:#e8f5ee;
+  --Q:#3d1a6e;--Q2:#1a6ea8;--Q3:#6e1a3d;--Qlt:#f2ecfc;--Q2lt:#e8f4fc;--Q3lt:#fce8f2;
+  --SA:#0a5c2e;--SAlt:#e6f7ed;
+  --FIRB:#5c3d0a;--FIRBlt:#fdf3e6;
+  --AIRB:#1a3a5c;--AIRBlt:#e8f0f8;
+  --corp:#1a3a5c;--corplt:#e8f0f8;
+  --ret:#5c1a3a;--retlt:#fce8f2;
+  --sov:#0a5c40;--sovlt:#e6f7f2;
+  --oth:#3d3d0a;--othlt:#f7f7e6;
+  --warn:#b5860a;--danger:#c0281a;--good:#1a6e3a;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',sans-serif;font-size:13px;line-height:1.6;display:flex;flex-direction:column;}
 
+/* HEADER */
+header{height:50px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 20px;transition:background .3s;}
+body.mode-M header{background:var(--M);}
+body.mode-Q header{background:var(--Q);}
+.hd-l{display:flex;align-items:center;gap:12px;}
+.hd-logo{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#fff;letter-spacing:2px;}
+.hd-sep{width:1px;height:20px;background:rgba(255,255,255,.2);}
+.hd-title{font-size:12px;color:rgba(255,255,255,.85);font-weight:500;}
+.hd-r{display:flex;align-items:center;gap:9px;}
+.hd-badge{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);padding:2px 8px;border-radius:3px;font-size:10px;letter-spacing:.8px;text-transform:uppercase;}
+.hd-badge.live{background:rgba(196,92,26,.35);border-color:rgba(196,92,26,.6);color:#ffb899;animation:blink 2s infinite;}
+.hd-time{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(255,255,255,.45);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* MODE SWITCHER */
+.mode-sw{height:42px;flex-shrink:0;background:var(--sf);border-bottom:2px solid var(--bdr);display:flex;align-items:center;padding:0 16px;gap:0;}
+.msw-btn{display:flex;align-items:center;gap:7px;padding:0 22px;height:100%;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:.3px;cursor:pointer;border:none;background:none;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .18s;user-select:none;}
+.msw-btn:hover{color:var(--ink);}
+.msw-btn.M.active{color:var(--M);border-bottom-color:var(--M);}
+.msw-btn.Q.active{color:var(--Q);border-bottom-color:var(--Q);}
+.msw-tag{font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700;}
+.msw-btn.M .msw-tag{background:var(--Mlt);color:var(--M);}
+.msw-btn.Q .msw-tag{background:var(--Qlt);color:var(--Q);}
+.msw-sep{width:1px;height:22px;background:var(--bdr);margin:0 6px;}
+.msw-desc{font-size:11px;color:var(--muted);padding-left:14px;border-left:1px solid var(--bdr);}
+
+/* TOP NAV */
+.topnav{height:44px;flex-shrink:0;background:var(--sf);border-bottom:1px solid var(--bdr2);display:flex;align-items:stretch;padding:0 14px;overflow-x:auto;gap:0;}
+.topnav::-webkit-scrollbar{height:2px;}
+.topnav::-webkit-scrollbar-thumb{background:var(--bdr2);}
+.ntab{display:flex;align-items:center;gap:5px;padding:0 14px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .12s;user-select:none;}
+.ntab:hover{color:var(--ink);}
+body.mode-M .ntab.active{color:var(--M);border-bottom-color:var(--M);}
+body.mode-Q .ntab.active{color:var(--Q);border-bottom-color:var(--Q);}
+.ntab .nb{font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700;}
+body.mode-M .ntab .nb{background:var(--M2lt);color:var(--M2);}
+body.mode-Q .ntab .nb{background:var(--Qlt);color:var(--Q);}
+.n-sep{width:1px;background:var(--bdr);margin:10px 3px;flex-shrink:0;}
+
+/* MAIN */
+.main-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 20px 28px;display:flex;flex-direction:column;gap:14px;}
+.main-scroll::-webkit-scrollbar{width:4px;}
+.main-scroll::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
+.pg{display:none;flex-direction:column;gap:14px;}
+.pg.active{display:flex;}
+
+/* PAGE TITLE */
+.pg-title{display:flex;align-items:center;justify-content:space-between;padding-bottom:4px;border-bottom:1px solid var(--bdr);}
+.pg-title h2{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.3px;}
+body.mode-M .pg-title h2{color:var(--M);}
+body.mode-Q .pg-title h2{color:var(--Q);}
+.pg-title .sub{font-size:11px;color:var(--muted);margin-top:1px;}
+
+/* CARD */
+.card{background:var(--sf);border:1px solid var(--bdr);border-radius:6px;padding:14px 16px;}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.card-title{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+
+/* SUB-TABS (입력/속보치 내부 탭) */
+.stab-bar{display:flex;gap:0;border-bottom:1px solid var(--bdr);margin-bottom:14px;flex-wrap:wrap;}
+.stab{padding:7px 16px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:all .12s;user-select:none;}
+.stab:hover{color:var(--ink);}
+body.mode-M .stab.active{color:var(--M);border-bottom-color:var(--M);background:var(--Mlt);}
+body.mode-Q .stab.active{color:var(--Q);border-bottom-color:var(--Q);background:var(--Qlt);}
+.stab-panel{display:none;flex-direction:column;gap:14px;}
+.stab-panel.active{display:flex;}
+
+/* METHOD TAGS */
+.mtag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.5px;}
+.mtag.sa{background:var(--SAlt);color:var(--SA);border:1px solid rgba(10,92,46,.2);}
+.mtag.firb{background:var(--FIRBlt);color:var(--FIRB);border:1px solid rgba(92,61,10,.2);}
+.mtab.airb{background:var(--AIRBlt);color:var(--AIRB);border:1px solid rgba(26,58,92,.2);}
+.mtag.airb{background:var(--AIRBlt);color:var(--AIRB);border:1px solid rgba(26,58,92,.2);}
+
+/* ACCT TAGS */
+.atag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;}
+.atag.corp{background:var(--corplt);color:var(--corp);border:1px solid rgba(26,58,92,.2);}
+.atag.ret{background:var(--retlt);color:var(--ret);border:1px solid rgba(92,26,58,.2);}
+.atag.sov{background:var(--sovlt);color:var(--sov);border:1px solid rgba(10,92,64,.2);}
+.atag.oth{background:var(--othlt);color:var(--oth);border:1px solid rgba(61,61,10,.2);}
+
+/* GRIDS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+.g6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;}
+.g73{display:grid;grid-template-columns:7fr 5fr;gap:14px;}
+.g64{display:grid;grid-template-columns:6fr 4fr;gap:14px;}
+
+/* METRIC */
+.metric{background:var(--sf);border:1px solid var(--bdr);border-radius:6px;padding:12px 14px;}
+.metric-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.metric-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;}
+.mv{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;line-height:1;margin-bottom:2px;}
+body.mode-M .mv.a1{color:var(--M);}body.mode-M .mv.a2{color:var(--M2);}body.mode-M .mv.a3{color:var(--M3);}
+body.mode-Q .mv.a1{color:var(--Q);}body.mode-Q .mv.a2{color:var(--Q2);}body.mode-Q .mv.a3{color:var(--Q3);}
+.mv.warn{color:var(--warn);}
+.metric-sub{font-size:11px;color:var(--muted);}
+.du{color:var(--danger);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;}
+.dd{color:var(--good);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;}
+
+/* PROGRESS HERO */
+.prog-hero{border-radius:8px;padding:18px 22px;color:#fff;position:relative;overflow:hidden;}
+body.mode-M .prog-hero{background:linear-gradient(130deg,var(--M) 0%,#235080 100%);}
+body.mode-Q .prog-hero{background:linear-gradient(130deg,var(--Q) 0%,#6040a0 100%);}
+.prog-hero::before{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:rgba(255,255,255,.04);border-radius:50%;}
+.ph-row1{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;}
+.ph-period{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-1px;line-height:1;}
+.ph-sub{font-size:10px;color:rgba(255,255,255,.55);letter-spacing:1.5px;margin-top:3px;text-transform:uppercase;}
+.ph-daynum{font-family:'JetBrains Mono',monospace;font-size:40px;font-weight:600;line-height:1;}
+.ph-daysub{font-size:10px;color:rgba(255,255,255,.5);text-align:right;}
+.ph-track{background:rgba(255,255,255,.15);border-radius:4px;height:9px;margin-bottom:6px;}
+.ph-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,200,100,.9));transition:width .5s;}
+.ph-lbl{display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.4);margin-bottom:12px;}
+.ph-stats{display:flex;gap:20px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12);flex-wrap:wrap;}
+.ph-sl{font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;}
+.ph-sv{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;color:#fff;}
+.ph-sv.hi{color:#ffcc80;}
+
+/* TABLE */
+.tbl{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{padding:6px 9px;text-align:right;font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;border-bottom:1px solid var(--bdr);background:var(--bg);white-space:nowrap;}
+thead th:first-child{text-align:left;}
+tbody tr{border-bottom:1px solid var(--bg2);transition:background .1s;}
+tbody tr:hover{background:var(--bg);}
+tbody td{padding:6px 9px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink2);}
+tbody td:first-child{text-align:left;font-family:'Noto Sans KR',sans-serif;font-size:12px;color:var(--ink);}
+tfoot td{padding:7px 9px;text-align:right;border-top:2px solid var(--bdr2);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;}
+tfoot td:first-child{text-align:left;font-family:'Noto Sans KR',sans-serif;}
+body.mode-M tfoot td{color:var(--M);}
+body.mode-Q tfoot td{color:var(--Q);}
+.row-sub td{background:rgba(0,0,0,.015);font-size:11px;}
+.row-sub td:first-child{padding-left:22px;color:var(--ink2);}
+
+/* CBAR */
+.cbar{display:flex;align-items:center;gap:5px;}
+.cbar-track{flex:1;height:4px;background:var(--bg2);border-radius:2px;overflow:hidden;}
+.cbar-fill{height:100%;border-radius:2px;}
+.cbar-fill.h{background:var(--good);}.cbar-fill.m{background:var(--warn);}.cbar-fill.l{background:var(--danger);}
+.cbar-pct{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);min-width:28px;text-align:right;}
+
+/* PIPELINE */
+.pipe{display:flex;border:1px solid var(--bdr);border-radius:6px;overflow:hidden;}
+.pipe-step{flex:1;padding:10px 8px;border-right:1px solid var(--bdr);cursor:pointer;transition:background .12s;position:relative;}
+.pipe-step:last-child{border-right:none;}
+.pipe-step:hover{background:var(--bg);}
+.pipe-step.done{background:var(--M3lt);}
+body.mode-Q .pipe-step.done{background:var(--Q2lt);}
+.pipe-step.act-step{background:var(--Mlt);}
+body.mode-Q .pipe-step.act-step{background:var(--Qlt);}
+.pipe-num{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--bdr2);line-height:1;margin-bottom:2px;}
+.pipe-ttl{font-size:11px;font-weight:600;color:var(--ink);margin-bottom:1px;}
+.pipe-dsc{font-size:10px;color:var(--muted);line-height:1.4;}
+.pipe-dot{position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;}
+.pipe-dot.done{background:var(--good);}.pipe-dot.act{background:var(--warn);animation:blink 1.5s infinite;}.pipe-dot.pend{background:var(--bdr2);}
+
+/* BLEND */
+.blend-vis{background:var(--bg);border-radius:5px;padding:11px;margin-top:4px;}
+.bw{margin-bottom:8px;}
+.bw-lbl{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;}
+.bw-lbl span:first-child{color:var(--ink2);}
+.bw-lbl span:last-child{font-family:'JetBrains Mono',monospace;font-weight:600;}
+body.mode-M .bw-lbl span:last-child{color:var(--M);}
+body.mode-Q .bw-lbl span:last-child{color:var(--Q);}
+.bw-track{height:7px;background:var(--bdr);border-radius:3px;overflow:hidden;}
+.bw-fill{height:100%;border-radius:3px;transition:width .4s;}
+body.mode-M .bw-fill.obs{background:linear-gradient(90deg,var(--M),#2a5a8c);}
+body.mode-M .bw-fill.mod{background:linear-gradient(90deg,var(--M2),#e07840);}
+body.mode-M .bw-fill.mac{background:linear-gradient(90deg,var(--M3),#2a8c50);}
+body.mode-Q .bw-fill.obs{background:linear-gradient(90deg,var(--Q),#6040a0);}
+body.mode-Q .bw-fill.mod{background:linear-gradient(90deg,var(--Q2),#2a8ec8);}
+body.mode-Q .bw-fill.mac{background:linear-gradient(90deg,var(--Q3),#9c3a6a);}
+.bw-note{font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;}
+
+/* RESULT HERO */
+.result-hero{border-radius:8px;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:14px;}
+body.mode-M .result-hero{border:2px solid var(--M);background:var(--Mlt);}
+body.mode-Q .result-hero{border:2px solid var(--Q);background:var(--Qlt);}
+.rh-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:3px;}
+body.mode-M .rh-label{color:var(--M);}
+body.mode-Q .rh-label{color:var(--Q);}
+.rh-value{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:600;line-height:1;}
+body.mode-M .rh-value{color:var(--M);}
+body.mode-Q .rh-value{color:var(--Q);}
+.rh-unit{font-size:14px;color:var(--muted);margin-left:3px;}
+.rh-delta{font-size:12px;margin-top:3px;color:var(--ink2);}
+.rh-ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+.rh-mv{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--ink);}
+.rh-conf-lbl{font-size:10px;color:var(--muted);}
+.rh-conf-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;color:var(--good);}
+
+/* METHOD CARD (속보치 방법론별 카드) */
+.meth-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.meth-card{border-radius:6px;padding:13px 14px;border:1px solid var(--bdr);}
+.meth-card.sa{border-top:3px solid var(--SA);background:var(--sf);}
+.meth-card.firb{border-top:3px solid var(--FIRB);background:var(--sf);}
+.meth-card.airb{border-top:3px solid var(--AIRB);background:var(--sf);}
+.mc-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.mc-name{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;}
+.mc-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600;line-height:1;margin-bottom:2px;}
+.mc-val.sa{color:var(--SA);}
+.mc-val.firb{color:var(--FIRB);}
+.mc-val.airb{color:var(--AIRB);}
+.mc-sub{font-size:10px;color:var(--muted);margin-bottom:8px;}
+.mc-mape{font-size:10px;}
+
+/* ACCT CARDS (속보치 계정과목별) */
+.acct-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.acct-card{border-radius:6px;padding:12px 13px;border:1px solid var(--bdr);background:var(--sf);}
+.acct-card.corp{border-left:4px solid var(--corp);}
+.acct-card.ret{border-left:4px solid var(--ret);}
+.acct-card.sov{border-left:4px solid var(--sov);}
+.acct-card.oth{border-left:4px solid var(--oth);}
+.ac-cat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
+.acct-card.corp .ac-cat{color:var(--corp);}
+.acct-card.ret  .ac-cat{color:var(--ret);}
+.acct-card.sov  .ac-cat{color:var(--sov);}
+.acct-card.oth  .ac-cat{color:var(--oth);}
+.ac-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--ink);line-height:1;margin-bottom:2px;}
+.ac-sub{font-size:10px;color:var(--muted);margin-bottom:6px;}
+.ac-meth{display:flex;gap:4px;flex-wrap:wrap;}
+.ac-meth-item{font-size:10px;padding:1px 5px;border-radius:3px;}
+
+/* SIGNAL GRID */
+.sig-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
+.sig{background:var(--bg);border:1px solid var(--bdr);border-radius:5px;padding:8px 10px;}
+.sig-name{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;}
+.sig-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;}
+body.mode-M .sig-val{color:var(--M);}
+body.mode-Q .sig-val{color:var(--Q);}
+.sig-tr{font-size:10px;}.sig-tr .up{color:var(--danger);}.sig-tr .dn{color:var(--good);}.sig-tr .fl{color:var(--muted);}
+
+/* FEAT BAR */
+.feat-rows{display:flex;flex-direction:column;gap:5px;}
+.feat-row{display:flex;align-items:center;gap:7px;}
+.feat-name{font-size:11px;color:var(--ink2);flex-shrink:0;}
+.feat-trk{flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden;}
+.feat-fill{height:100%;border-radius:3px;}
+body.mode-M .feat-fill{background:linear-gradient(90deg,var(--M),#2a5a8c);}
+body.mode-Q .feat-fill{background:linear-gradient(90deg,var(--Q),#6040a0);}
+.feat-pct{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);min-width:28px;text-align:right;}
+
+/* ALERT */
+.alert{border-radius:5px;padding:8px 12px;font-size:11px;display:flex;gap:8px;border-left:3px solid;line-height:1.5;}
+.alert-icon{flex-shrink:0;font-size:13px;}
+.alert.info{background:var(--Mlt);border-color:var(--M);color:#1a3a5c;}
+.alert.info-q{background:var(--Qlt);border-color:var(--Q);color:#3d1a6e;}
+.alert.warn{background:var(--M2lt);border-color:var(--warn);color:#7a5a00;}
+.alert.good{background:var(--M3lt);border-color:var(--good);color:#1a5e30;}
+.alert ul{margin:3px 0 0 12px;}.alert li{margin-bottom:1px;}
+
+/* CHIP */
+.chip{display:inline-flex;align-items:center;background:var(--bg2);border:1px solid var(--bdr);border-radius:3px;padding:2px 6px;font-size:10px;color:var(--muted);gap:3px;}
+.chip.M1{background:var(--Mlt);color:var(--M);border-color:rgba(26,58,92,.2);}
+.chip.M2{background:var(--M2lt);color:var(--M2);border-color:rgba(196,92,26,.2);}
+.chip.M3{background:var(--M3lt);color:var(--M3);border-color:rgba(26,110,58,.2);}
+.chip.Q1{background:var(--Qlt);color:var(--Q);border-color:rgba(61,26,110,.2);}
+.chip.warn{background:#fdf8e8;color:var(--warn);border-color:rgba(181,134,10,.2);}
+.chip.good{background:var(--M3lt);color:var(--good);border-color:rgba(26,110,58,.2);}
+.chip.sa{background:var(--SAlt);color:var(--SA);border-color:rgba(10,92,46,.2);}
+.chip.firb{background:var(--FIRBlt);color:var(--FIRB);border-color:rgba(92,61,10,.2);}
+.chip.airb{background:var(--AIRBlt);color:var(--AIRB);border-color:rgba(26,58,92,.2);}
+
+/* BUTTONS */
+.btn{padding:7px 13px;border-radius:4px;border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;transition:all .12s;}
+.btn-p{color:#fff;}
+body.mode-M .btn-p{background:var(--M);}body.mode-M .btn-p:hover{background:#0f2a45;}
+body.mode-Q .btn-p{background:var(--Q);}body.mode-Q .btn-p:hover{background:#2d1050;}
+.btn-s{background:transparent;border:1px solid var(--bdr2);color:var(--ink2);}
+body.mode-M .btn-s:hover{border-color:var(--M);color:var(--M);}
+body.mode-Q .btn-s:hover{border-color:var(--Q);color:var(--Q);}
+.btn-sa{background:var(--SAlt);border:1px solid rgba(10,92,46,.3);color:var(--SA);}
+.btn-firb{background:var(--FIRBlt);border:1px solid rgba(92,61,10,.3);color:var(--FIRB);}
+.btn-airb{background:var(--AIRBlt);border:1px solid rgba(26,58,92,.3);color:var(--AIRB);}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn-grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+
+/* FORM */
+.frow{display:grid;gap:9px;margin-bottom:10px;}
+.frow.c2{grid-template-columns:repeat(2,1fr);}.frow.c3{grid-template-columns:repeat(3,1fr);}
+.frow.c4{grid-template-columns:repeat(4,1fr);}.frow.c5{grid-template-columns:repeat(5,1fr);}
+.frow.c6{grid-template-columns:repeat(6,1fr);}
+.fg{display:flex;flex-direction:column;gap:3px;}
+.fg label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;}
+.fg input,.fg select{background:var(--bg);border:1px solid var(--bdr2);border-radius:4px;padding:6px 8px;color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border-color .12s;width:100%;}
+body.mode-M .fg input:focus,body.mode-M .fg select:focus{border-color:var(--M);}
+body.mode-Q .fg input:focus,body.mode-Q .fg select:focus{border-color:var(--Q);}
+
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed var(--bdr2);border-radius:6px;padding:20px;text-align:center;background:var(--bg);cursor:pointer;transition:all .15s;}
+.upload-zone:hover{border-color:var(--M);background:var(--Mlt);}
+body.mode-Q .upload-zone:hover{border-color:var(--Q);background:var(--Qlt);}
+.upload-zone .uz-icon{font-size:28px;margin-bottom:6px;}
+.upload-zone .uz-text{font-size:12px;color:var(--muted);}
+.upload-zone .uz-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+
+/* DIVIDER BANNER */
+.dbanner{display:flex;align-items:center;gap:9px;padding:8px 13px;border-radius:5px;font-size:11px;font-weight:500;}
+body.mode-M .dbanner{background:var(--Mlt);border:1px solid rgba(26,58,92,.12);color:var(--M);}
+body.mode-Q .dbanner{background:var(--Qlt);border:1px solid rgba(61,26,110,.12);color:var(--Q);}
+
+/* AI FAB */
+.ai-fab{position:fixed;bottom:22px;right:22px;z-index:500;width:44px;height:44px;border-radius:50%;color:#fff;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.2);transition:all .15s;}
+body.mode-M .ai-fab{background:var(--M);}
+body.mode-Q .ai-fab{background:var(--Q);}
+.ai-fab:hover{transform:scale(1.07);}
+.fdot{position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--M2);border:2px solid var(--sf);animation:blink 2s infinite;}
+.ai-drawer{position:fixed;bottom:78px;right:22px;z-index:500;width:320px;background:var(--sf);border:1px solid var(--bdr);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.13);display:none;flex-direction:column;max-height:calc(100vh - 108px);}
+.ai-drawer.open{display:flex;}
+.ai-dhd{padding:10px 13px;border-bottom:1px solid var(--bdr);background:var(--bg);border-radius:10px 10px 0 0;display:flex;align-items:center;justify-content:space-between;}
+.ai-dleft{display:flex;align-items:center;gap:7px;}
+.ai-live{width:7px;height:7px;border-radius:50%;background:var(--M2);animation:blink 2s infinite;}
+.ai-dhd h4{font-size:12px;font-weight:600;color:var(--ink);}
+.ai-dhd span{font-size:10px;color:var(--muted);}
+.ai-x{background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);}
+.ai-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px;min-height:160px;}
+.ai-msg{border-radius:5px;padding:7px 10px;font-size:11px;line-height:1.6;}
+.ai-msg.sys{background:var(--Mlt);border:1px solid rgba(26,58,92,.15);color:var(--M);}
+.ai-msg.bot{background:var(--bg);border:1px solid var(--bdr);color:var(--ink2);}
+.ai-msg.usr{color:#fff;}
+body.mode-M .ai-msg.usr{background:var(--M);}
+body.mode-Q .ai-msg.usr{background:var(--Q);}
+.ai-lbl{font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;opacity:.65;}
+.ai-ir{padding:8px 10px;border-top:1px solid var(--bdr);display:flex;gap:5px;}
+.ai-inp{flex:1;background:var(--bg);border:1px solid var(--bdr2);border-radius:4px;padding:5px 8px;font-family:'Noto Sans KR',sans-serif;font-size:11px;color:var(--ink);outline:none;}
+.ai-send{color:#fff;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:600;}
+body.mode-M .ai-send{background:var(--M);}
+body.mode-Q .ai-send{background:var(--Q);}
+
+/* LOADING */
+.ld-ov{display:none;position:fixed;inset:0;background:rgba(244,243,239,.92);z-index:600;align-items:center;justify-content:center;flex-direction:column;gap:11px;}
+.ld-ov.show{display:flex;}
+.spinner{width:36px;height:36px;border:3px solid var(--bdr2);border-radius:50%;animation:spin .7s linear infinite;}
+body.mode-M .spinner{border-top-color:var(--M);}
+body.mode-Q .spinner{border-top-color:var(--Q);}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld-msg{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;}
+body.mode-M .ld-msg{color:var(--M);}
+body.mode-Q .ld-msg{color:var(--Q);}
+.ld-bar{width:260px;height:3px;background:var(--bdr);border-radius:2px;overflow:hidden;}
+.ld-fill{height:100%;border-radius:2px;transition:width .35s;}
+body.mode-M .ld-fill{background:var(--M2);}
+body.mode-Q .ld-fill{background:var(--Q2);}
+.ld-sub{font-size:11px;color:var(--muted);}
+
+/* TRAJ */
+.tleg{display:flex;gap:12px;flex-wrap:wrap;}
+.tleg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);}
+.tl-dot{width:7px;height:7px;border-radius:50%;}
+.tl-line{width:16px;height:2px;}
+
+/* ═══════════ 모바일 반응형 (≤768px) ═══════════ */
+@media (max-width: 768px) {
+  body{font-size:13px;}
+
+  /* 헤더 */
+  header{height:auto;min-height:46px;flex-wrap:wrap;padding:8px 12px;gap:6px;}
+  .hd-l{gap:8px;flex-wrap:wrap;}
+  .hd-title{display:none;}
+  .hd-sep{display:none;}
+  .hd-r{gap:6px;flex-wrap:wrap;}
+  .hd-time{display:none;}
+  .hd-badge{font-size:10px;padding:2px 6px;}
+
+  /* 모드 스위처 */
+  .mode-sw{height:auto;flex-wrap:wrap;padding:8px 12px;gap:8px;align-items:flex-start;}
+  .msw-desc{border-left:none;padding-left:0;font-size:10px;white-space:normal;line-height:1.5;}
+  .msw-btn{font-size:11px;padding:6px 10px;}
+
+  /* 상단 네비게이션 - 가로 스크롤 */
+  .topnav{overflow-x:auto;-webkit-overflow-scrolling:touch;height:auto;padding:0 8px;}
+  .ntab{font-size:11px;padding:8px 10px;white-space:nowrap;flex-shrink:0;}
+  .ntab .nb{font-size:9px;}
+
+  /* 메인 영역 */
+  .main-scroll{padding:10px 10px 60px;gap:10px;}
+
+  /* 그리드 → 1열 */
+  .g2,.g3,.g4,.acct-cards{grid-template-columns:1fr;gap:10px;}
+
+  /* 폼 행 → 1~2열 */
+  .frow.c2,.frow.c3,.frow.c4{grid-template-columns:1fr 1fr;}
+  .frow.c1{grid-template-columns:1fr;}
+
+  /* 카드 패딩 축소 */
+  .card{padding:12px;}
+  .card-hd{flex-wrap:wrap;gap:6px;}
+  .card-title{font-size:13px;}
+
+  /* 테이블 - 가로 스크롤 + 폰트 축소 */
+  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
+  .tbl table{font-size:11px;}
+  .tbl th,.tbl td{padding:6px 8px;}
+  /* 헤더가 있는 데이터 테이블만 가로 스크롤 강제 (min-width) */
+  .tbl table:has(thead){min-width:560px;}
+  /* MAPE 성능 테이블(구간/MAPE/신뢰도 3열)은 좁아도 보이도록 min-width 축소 */
+  #pg-model .card .tbl table:has(thead),
+  #pg-flash .meth-card .tbl table:has(thead),
+  #pg-flash .card .tbl table:has(thead){min-width:0;width:100%;}
+  #pg-model .card .tbl th,#pg-model .card .tbl td,
+  #pg-flash .meth-card .tbl th,#pg-flash .meth-card .tbl td,
+  #pg-flash .card .tbl th,#pg-flash .card .tbl td{white-space:nowrap;font-size:10px;padding:5px 4px;}
+  #pg-model .card .tbl .cbar,#pg-flash .tbl .cbar{min-width:50px;}
+  #pg-model .card .tbl .cbar-track,#pg-flash .tbl .cbar-track{width:36px;}
+  #pg-flash .meth-card .tbl td:first-child{white-space:normal;}
+  #pg-flash .meth-card .atag{font-size:9px;padding:1px 5px;}
+  .tbl table:has(thead) th,.tbl table:has(thead) td{white-space:nowrap;}
+  /* 헤더 없는 키-값 설명 테이블은 줄바꿈 허용, 폭 100% */
+  .tbl table:not(:has(thead)){width:100%;}
+  .tbl table:not(:has(thead)) td{white-space:normal;word-break:break-word;}
+  .tbl table:not(:has(thead)) td:first-child{width:42%;color:var(--muted);}
+  /* 카드 내부 가로 넘침 방지 */
+  .card{overflow-x:hidden;}
+
+  /* 진행 히어로 */
+  .prog-hero{padding:14px;}
+  .ph-row1{flex-direction:column;align-items:flex-start;gap:10px;}
+  .ph-row1 > div:last-child{font-size:32px !important;}
+
+  /* 탭바 - 가로 스크롤 */
+  .stab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
+  .stab{white-space:nowrap;flex-shrink:0;font-size:11px;padding:6px 10px;}
+
+  /* 결과 히어로 */
+  .result-hero{flex-direction:column;align-items:flex-start;gap:10px;padding:12px;}
+  .result-hero > div{width:100%;}
+
+  /* 메트릭 카드 */
+  .metric{padding:10px;}
+  .mv,.mv.a1,.mv.a2,.mv.a3{font-size:20px !important;}
+
+  /* AI 드로어 - 전체화면 */
+  .ai-drawer{
+    position:fixed; top:0; left:0; right:0; bottom:0;
+    width:100%; height:100%; border-radius:0; border:none;
+  }
+  .ai-fab{bottom:16px; right:16px; width:48px; height:48px;}
+
+  /* feat-rows */
+  .feat-row{flex-wrap:wrap;}
+  .feat-name{width:auto !important; min-width:90px;}
+
+  /* 업로드 영역 */
+  .upload-zone{padding:20px 12px;}
+
+  /* signal grid */
+  .sig-grid{grid-template-columns:repeat(2,1fr);gap:8px;}
+
+  /* dashboard acct-cards 내부 ac-meth */
+  .ac-meth{flex-wrap:wrap;}
+
+  /* pg-title */
+  .pg-title{flex-direction:column;align-items:flex-start;gap:8px;}
+  .pg-title h2{font-size:16px;}
+  .pg-title .sub{font-size:11px;}
+
+  /* btn-grp */
+  .btn-grp{flex-wrap:wrap;}
+
+  /* input 너비 제한 해제 */
+  input[type="number"], input[type="text"], input[type="date"], input[type="month"], select{
+    width:100% !important; max-width:100%;
+  }
+}
+
+/* ═══════════ 초소형 화면 (≤400px) ═══════════ */
+@media (max-width: 400px) {
+  .frow.c2,.frow.c3,.frow.c4{grid-template-columns:1fr;}
+  .g4 .metric .mv{font-size:18px !important;}
+  .hd-badge:not(#modeLabel){display:none;}
+}
+
+</style>
+</head>
+<body class="mode-M">
+
+<!-- LOADING -->
+<div class="ld-ov" id="ldOv">
+  <div class="spinner"></div>
+  <div class="ld-msg" id="ldMsg">속보치 산출 중</div>
+  <div class="ld-bar"><div class="ld-fill" id="ldBar" style="width:0%"></div></div>
+  <div class="ld-sub" id="ldSub">초기화…</div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="hd-l">
+    <div class="hd-logo">RWA·FLASH</div>
+    <div class="hd-sep"></div>
+    <div class="hd-title">신용RWA 속보치 산출 시스템 v2.0</div>
+  </div>
+  <div class="hd-r">
+    <span class="hd-badge live">● LIVE</span>
+    <span class="hd-badge" id="modeLabel">월중 모드</span>
+    <span class="hd-badge">IRB/SA 통합</span>
+    <span class="hd-time" id="clockEl">—</span>
+  </div>
+</header>
+
+<!-- MODE SWITCHER -->
+<div class="mode-sw">
+  <button class="msw-btn M active" id="btnM" onclick="setMode('M')">
+    <span>📅</span> 월중 속보치 <span class="msw-tag">MONTHLY</span>
+  </button>
+  <div class="msw-sep"></div>
+  <div class="msw-sep"></div>
+  <span class="msw-desc" id="msDesc">기준: 2026년 4월 확정 → 5월말 추정 | D+13 / 21영업일 | α = 61.9%</span>
+</div>
+
+<!-- TOP NAV -->
+<nav class="topnav">
+  <div class="ntab active" data-page="dashboard">◈ 대시보드</div>
+  <div class="ntab" data-page="flash"><span class="nb">핵심</span> ⚡ 속보치 산출</div>
+  <div class="n-sep"></div>
+  <div class="ntab" data-page="input">⊞ 히스토리컬 입력</div>
+  <div class="ntab" data-page="model">◎ 모델 관리</div>
+  <div class="ntab" data-page="validate">✓ 검증·백테스트</div>
+  <div class="n-sep"></div>
+  <div class="n-sep"></div>
+  <div class="ntab" data-page="config">⚙ 설정</div>
+</nav>
+
+<div class="main-scroll" id="mainScroll">
+
+<!-- ══ DASHBOARD ══ -->
+<div class="pg active" id="pg-dashboard">
+
+  <!-- 월 대시보드 -->
+  <div id="dash-M" style="display:flex;flex-direction:column;gap:14px">
+    <div class="pg-title" style="margin-bottom:0">
+      <div><h2>대시보드 · 월중 속보치</h2><div class="sub">기준: 2026년 4월 확정 → 2026년 5월 월말 | SA / F-IRB / A-IRB 통합</div></div>
+      <div class="btn-grp"><button class="btn btn-p btn-sm" onclick="navTo('flash')">⚡ 속보치 산출</button></div>
+    </div>
+    <div class="prog-hero">
+      <div class="ph-row1">
+        <div><div class="ph-period">2026년 5월</div><div class="ph-sub">Monthly Intra-Period Mode</div></div>
+        <div style="text-align:right"><div class="ph-daynum" id="M-dayNum">13</div><div class="ph-daysub">/ 21 영업일 경과</div></div>
+      </div>
+      <div class="ph-track"><div class="ph-fill" id="M-dayBar" style="width:61.9%"></div></div>
+      <div class="ph-lbl"><span>월초 D+1</span><span>중순 D+10</span><span>월말 D+21</span></div>
+      <div class="ph-stats">
+        <div><div class="ph-sl">경과율 α</div><div class="ph-sv hi" id="M-alpha">61.9%</div></div>
+        <div><div class="ph-sl">실측 가중치</div><div class="ph-sv hi" id="M-wO">68%</div></div>
+        <div><div class="ph-sl">모델 가중치</div><div class="ph-sv" id="M-wM">22%</div></div>
+        <div><div class="ph-sl">거시 가중치</div><div class="ph-sv" id="M-wC">10%</div></div>
+        <div><div class="ph-sl">잔여 영업일</div><div class="ph-sv">8일</div></div>
+        <div><div class="ph-sl">모델 신뢰도</div><div class="ph-sv hi" id="M-conf">84%</div></div>
+      </div>
+    </div>
+    <div class="g4">
+      <div class="metric"><div class="metric-top"><div class="metric-label">전월 확정 (4월)</div></div><div class="mv a1">147.6<span style="font-size:12px">조</span></div><div class="metric-sub">SA+F-IRB+A-IRB 합산</div></div>
+      <div class="metric"><div class="metric-top"><div class="metric-label">당월 속보치 (5월말)</div></div><div class="mv a2">150.5<span style="font-size:12px">조</span></div><div class="metric-sub"><span class="du">▲ +1.96%</span> 앙상블 추정</div></div>
+      <div class="metric"><div class="metric-top"><div class="metric-label">95% 신뢰구간</div></div><div class="mv a3" style="font-size:14px;line-height:1.4">148.7 ~ 152.3조</div><div class="metric-sub">±1.8조 (±1.20%)</div></div>
+      <div class="metric"><div class="metric-top"><div class="metric-label">모델 신뢰도</div></div><div class="mv a3">85<span style="font-size:13px">%</span></div><div class="metric-sub">경과율 61.9% 반영</div></div>
+    </div>
+    <!-- 방법론별 요약 -->
+    <div class="meth-cards">
+      <div class="meth-card sa">
+        <div class="mc-hd"><div class="mc-name">표준방법 (SA)</div><span class="mtag sa">SA</span></div>
+        <div class="mc-val sa">35.3<span style="font-size:12px">조</span></div>
+        <div class="mc-sub">전월 34.6조 | <span class="du">▲ +2.0%</span></div>
+        <div class="feat-rows" style="margin-top:6px">
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">국가·공공</div><div class="feat-trk"><div class="feat-fill" style="width:100%"></div></div><div class="feat-pct">10.3조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">기타 소매</div><div class="feat-trk"><div class="feat-fill" style="width:79%"></div></div><div class="feat-pct">8.1조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">비주거용부동산</div><div class="feat-trk"><div class="feat-fill" style="width:45%"></div></div><div class="feat-pct">4.6조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">중소법인·SME</div><div class="feat-trk"><div class="feat-fill" style="width:40%"></div></div><div class="feat-pct">4.1조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:9px;line-height:1.2">기타자산<br>(주식포함)</div><div class="feat-trk"><div class="feat-fill" style="width:23%"></div></div><div class="feat-pct">8.2조</div></div>
+        </div>
+        <div class="mc-mape" style="margin-top:8px;color:var(--muted)">MAPE 1.4% · 신뢰도 82%</div>
+      </div>
+      <div class="meth-card firb">
+        <div class="mc-hd"><div class="mc-name">기본내부등급법 (F-IRB)</div><span class="mtag firb">F-IRB</span></div>
+        <div class="mc-val firb">87.3<span style="font-size:12px">조</span></div>
+        <div class="mc-sub">전월 85.9조 | <span class="du">▲ +1.6%</span></div>
+        <div class="feat-rows" style="margin-top:6px">
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">대기업</div><div class="feat-trk"><div class="feat-fill" style="width:100%"></div></div><div class="feat-pct">43.0조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">중소기업</div><div class="feat-trk"><div class="feat-fill" style="width:52%"></div></div><div class="feat-pct">22.4조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">특수여신·SL</div><div class="feat-trk"><div class="feat-fill" style="width:19%"></div></div><div class="feat-pct">8.0조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">금융기관</div><div class="feat-trk"><div class="feat-fill" style="width:25%"></div></div><div class="feat-pct">10.8조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">국가</div><div class="feat-trk"><div class="feat-fill" style="width:7%"></div></div><div class="feat-pct">3.1조</div></div>
+        </div>
+        <div class="mc-mape" style="margin-top:8px;color:var(--muted)">MAPE 1.1% · 신뢰도 85%</div>
+      </div>
+      <div class="meth-card airb">
+        <div class="mc-hd"><div class="mc-name">고급내부등급법 (A-IRB)</div><span class="mtag airb">A-IRB</span></div>
+        <div class="mc-val airb">27.9<span style="font-size:12px">조</span></div>
+        <div class="mc-sub">전월 27.2조 | <span class="du">▲ +2.6%</span></div>
+        <div class="feat-rows" style="margin-top:6px">
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">주거용부동산</div><div class="feat-trk"><div class="feat-fill" style="width:88%"></div></div><div class="feat-pct">24.5조</div></div>
+          <div class="feat-row"><div class="feat-name" style="width:70px;font-size:10px">회전형적격</div><div class="feat-trk"><div class="feat-fill" style="width:12%"></div></div><div class="feat-pct">3.4조</div></div>
+        </div>
+        <div class="mc-mape" style="margin-top:8px;color:var(--muted)">MAPE 0.9% · 신뢰도 87%</div>
+      </div>
+    </div>
+    <!-- 계정과목별 -->
+    <div class="acct-cards">
+      <div class="acct-card corp">
+        <div class="ac-cat">법인(기업) 익스포저</div>
+        <div class="ac-val">77.5조</div>
+        <div class="ac-sub">전월 76.1조 <span class="du">▲+1.8%</span></div>
+        <div class="ac-meth">
+          <span class="ac-meth-item" style="background:var(--SAlt);color:var(--SA)">SA 4.1조</span>
+          <span class="ac-meth-item" style="background:var(--FIRBlt);color:var(--FIRB)">F-IRB 73.4조</span>
+        </div>
+      </div>
+      <div class="acct-card ret">
+        <div class="ac-cat">소매 익스포저</div>
+        <div class="ac-val">36.0조</div>
+        <div class="ac-sub">전월 35.5조 <span class="du">▲+1.4%</span></div>
+        <div class="ac-meth">
+          <span class="ac-meth-item" style="background:var(--SAlt);color:var(--SA)">SA 8.1조</span>
+          <span class="ac-meth-item" style="background:var(--AIRBlt);color:var(--AIRB)">A-IRB 27.9조</span>
+        </div>
+      </div>
+      <div class="acct-card sov">
+        <div class="ac-cat">국가·공공기관</div>
+        <div class="ac-val">18.8조</div>
+        <div class="ac-sub">전월 18.4조 <span class="du">▲+2.2%</span></div>
+        <div class="ac-meth">
+          <span class="ac-meth-item" style="background:var(--SAlt);color:var(--SA)">SA 10.3조</span>
+          <span class="ac-meth-item" style="background:var(--FIRBlt);color:var(--FIRB)">F-IRB 8.5조</span>
+        </div>
+      </div>
+      <div class="acct-card oth">
+        <div class="ac-cat">부동산·기타자산</div>
+        <div class="ac-val">12.8조</div>
+        <div class="ac-sub">전월 12.6조 <span class="du">▲+1.6%</span></div>
+        <div class="ac-meth">
+          <span class="ac-meth-item" style="background:var(--SAlt);color:var(--SA)">SA 12.8조</span>
+        </div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="alert warn"><div class="alert-icon">⚠</div><div>F-IRB 특수여신·SL 신뢰도 78% — 정책금리 결정(5/29) 미반영. 수동 조정 권고.</div></div>
+      <div class="alert good"><div class="alert-icon">✓</div><div>경과율 61.9% — 실측 가중치 68% 적용 중. 8영업일 잔여.</div></div>
+    </div>
+  </div>
+
+
+</div><!-- /pg-dashboard -->
+
+
+<!-- ══ FLASH (속보치 산출) ══ -->
+<div class="pg" id="pg-flash">
+  <div class="pg-title">
+    <div><h2 id="flash-h2">월중 속보치 산출</h2><div class="sub" id="flash-sub">계정과목별·방법론별 3-Layer 혼합 추정</div></div>
+    <div class="btn-grp">
+      <button class="btn btn-p" onclick="runFlash()">⚡ 전체 재산출</button>
+      <button class="btn btn-s btn-sm">시나리오 비교</button>
+    </div>
+  </div>
+
+  <!-- 서브탭 -->
+  <div class="stab-bar">
+    <div class="stab active" onclick="switchStab('flash','total',this)">⚡ 전체 통합</div>
+    <div class="stab" onclick="switchStab('flash','acct',this)">🔍 계정과목별</div>
+    <div class="stab" onclick="switchStab('flash','meth',this)">📐 방법론별 (SA/IRB)</div>
+  </div>
+
+  <!-- ─ 전체 통합 서브패널 -->
+  <div class="stab-panel active" id="flash-total">
+    <div class="g2">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">산출 조건</div></div>
+        <div id="fc-M">
+          <div class="frow c3">
+            <div class="fg"><label>기준 월</label><select><option>2026년 4월</option><option>2026년 3월</option></select></div>
+            <div class="fg"><label>오늘 영업일 (D+)</label><input type="number" id="M-inputDay" value="13" min="1" max="23" onchange="recalcM()"/></div>
+            <div class="fg"><label>월 전체 영업일</label><input type="number" id="M-inputTotal" value="21" min="18" max="23" onchange="recalcM()"/></div>
+          </div>
+        </div>
+        
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">경과율 → 가중치</div><span id="alphChip" class="chip M2">α=61.9%</span></div>
+        <div class="blend-vis">
+          <div class="bw"><div class="bw-lbl"><span>① 실측 외삽</span><span id="fwO">68%</span></div><div class="bw-track"><div class="bw-fill obs" id="bwO" style="width:68%"></div></div></div>
+          <div class="bw"><div class="bw-lbl"><span>② 시계열 모델 앙상블</span><span id="fwM">22%</span></div><div class="bw-track"><div class="bw-fill mod" id="bwM" style="width:22%"></div></div></div>
+          <div class="bw"><div class="bw-lbl"><span>③ 거시경제 조정항</span><span id="fwC">10%</span></div><div class="bw-track"><div class="bw-fill mac" id="bwC" style="width:10%"></div></div></div>
+          <div class="bw-note" id="blendNote">w_obs=min(0.95, 0.35+0.97×α²) | 월초: 모델 주도 → 월말: 실측 주도</div>
+        </div>
+      </div>
+    </div>
+    <div class="result-hero">
+      <div>
+        <div class="rh-label" id="rh-label">5월말 신용RWA 속보치 (통합)</div>
+        <div class="rh-value" id="rh-val">150.5<span class="rh-unit">조원</span></div>
+        <div class="rh-delta" id="rh-delta">전월(4월) 147.6조 대비 <strong style="color:var(--danger)">▲+1.96% (+2.9조)</strong></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div><div class="rh-ml">95% 신뢰구간</div><div class="rh-mv" id="rh-ci">148.7 ~ 152.3조</div></div>
+        <div><div class="rh-ml">구간 반폭</div><div class="rh-mv" id="rh-hw">±1.8조 (±1.20%)</div></div>
+      </div>
+      <div style="text-align:center"><div class="rh-conf-lbl">모델 신뢰도</div><div class="rh-conf-val" id="rh-conf">84%</div></div>
+    </div>
+    <!-- 방법론별 결과 요약 -->
+    <div class="meth-cards">
+      <div class="meth-card sa">
+        <div class="mc-hd"><div class="mc-name">SA 속보치</div><span class="mtag sa">표준방법</span></div>
+        <div class="mc-val sa" id="f-sa-val">35.3<span style="font-size:12px">조</span></div>
+        <div class="mc-sub" id="f-sa-sub">전월 34.6조 | ▲+2.0% | 신뢰도 82%</div>
+        <div class="tbl" style="margin-top:8px"><table>
+          <thead><tr><th>자산분류(별표3)</th><th>속보</th><th>신뢰도</th></tr></thead>
+          <tbody>
+            <tr><td><span class="atag sov">국가·공공기관</span></td><td>10.3조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:88%"></div></div><div class="cbar-pct">88%</div></div></td></tr>
+            <tr><td><span class="atag ret">기타 소매</span></td><td>8.1조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:84%"></div></div><div class="cbar-pct">84%</div></div></td></tr>
+            <tr><td><span class="atag oth">비주거용 부동산</span></td><td>4.6조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill l" style="width:69%"></div></div><div class="cbar-pct">69%</div></div></td></tr>
+            <tr><td><span class="atag corp">중소법인·SME</span></td><td>4.1조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill m" style="width:76%"></div></div><div class="cbar-pct">76%</div></div></td></tr>
+            <tr><td><span class="atag oth">기타자산(주식포함)</span></td><td>8.2조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:89%"></div></div><div class="cbar-pct">89%</div></div></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="meth-card firb">
+        <div class="mc-hd"><div class="mc-name">F-IRB 속보치</div><span class="mtag firb">기본내부등급</span></div>
+        <div class="mc-val firb" id="f-firb-val">87.3<span style="font-size:12px">조</span></div>
+        <div class="mc-sub" id="f-firb-sub">전월 85.9조 | ▲+1.6% | 신뢰도 85%</div>
+        <div class="tbl" style="margin-top:8px"><table>
+          <thead><tr><th>자산분류(별표3)</th><th>속보</th><th>신뢰도</th></tr></thead>
+          <tbody>
+            <tr><td><span class="atag corp">대기업</span></td><td>43.0조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:91%"></div></div><div class="cbar-pct">91%</div></div></td></tr>
+            <tr><td><span class="atag corp">중소기업</span></td><td>22.4조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:87%"></div></div><div class="cbar-pct">87%</div></div></td></tr>
+            <tr><td><span class="atag corp">특수여신·SL</span></td><td>8.0조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill m" style="width:78%"></div></div><div class="cbar-pct">78%</div></div></td></tr>
+            <tr><td><span class="atag sov">금융기관</span></td><td>10.8조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:83%"></div></div><div class="cbar-pct">83%</div></div></td></tr>
+            <tr><td><span class="atag sov">국가</span></td><td>3.1조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:85%"></div></div><div class="cbar-pct">85%</div></div></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="meth-card airb">
+        <div class="mc-hd"><div class="mc-name">A-IRB 속보치</div><span class="mtag airb">고급내부등급</span></div>
+        <div class="mc-val airb" id="f-airb-val">27.9<span style="font-size:12px">조</span></div>
+        <div class="mc-sub" id="f-airb-sub">전월 27.2조 | ▲+2.6% | 신뢰도 87%</div>
+        <div class="tbl" style="margin-top:8px"><table>
+          <thead><tr><th>자산분류(별표3)</th><th>속보</th><th>신뢰도</th></tr></thead>
+          <tbody>
+            <tr><td><span class="atag ret">주거용 부동산</span></td><td>24.5조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:93%"></div></div><div class="cbar-pct">93%</div></div></td></tr>
+            <tr><td><span class="atag ret">회전형 적격소매</span></td><td>3.4조</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:91%"></div></div><div class="cbar-pct">91%</div></div></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ 계정과목별 서브패널 --><!-- ─ 계정과목별 서브패널 -->
+  <div class="stab-panel" id="flash-acct">
+    <div class="dbanner"><span>ℹ️</span>계정과목별 속보치 — 별표3 자산분류 기준, 각 분류 내 SA·F-IRB·A-IRB 방법론 적용</div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">법인(기업) 익스포저 속보치</div><span class="atag corp">CORPORATE</span></div>
+        <div class="result-hero" style="padding:12px 16px;margin-bottom:10px">
+          <div><div class="rh-label">법인(기업) 월말 속보</div><div class="rh-value" style="font-size:26px">77.5<span class="rh-unit">조</span></div><div class="rh-delta"><span class="du">▲+1.8%</span> 전월 76.1조</div></div>
+          <div><div class="rh-ml">신뢰구간</div><div class="rh-mv">75.8 ~ 79.2조</div></div>
+          <div><div class="rh-conf-lbl">신뢰도</div><div class="rh-conf-val" style="font-size:18px">86%</div></div>
+        </div>
+        <div class="tbl"><table>
+          <thead><tr><th>세부 자산분류(별표3)</th><th>방법론</th><th>전월 확정</th><th>속보치</th><th>증감</th><th>신뢰도</th></tr></thead>
+          <tbody>
+            <tr><td>대기업</td><td><span class="mtag firb">F-IRB</span></td><td>42.1조</td><td>43.0조</td><td class="du">▲+2.1%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:91%"></div></div><div class="cbar-pct">91%</div></div></td></tr>
+            <tr><td>중소기업</td><td><span class="mtag firb">F-IRB</span></td><td>21.8조</td><td>22.4조</td><td class="du">▲+2.8%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:87%"></div></div><div class="cbar-pct">87%</div></div></td></tr>
+            <tr><td>특수여신·SL</td><td><span class="mtag firb">F-IRB</span></td><td>7.8조</td><td>8.0조</td><td class="du">▲+2.6%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill m" style="width:78%"></div></div><div class="cbar-pct">78%</div></div></td></tr>
+            <tr><td>중소법인·SME</td><td><span class="mtag sa">SA</span></td><td>4.0조</td><td>4.1조</td><td class="du">▲+2.5%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill m" style="width:76%"></div></div><div class="cbar-pct">76%</div></div></td></tr>
+          </tbody>
+          <tfoot><tr><td>법인(기업) 합계</td><td></td><td>76.1조</td><td>77.5조</td><td class="du">▲+1.8%</td><td></td></tr></tfoot>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">소매 익스포저 속보치</div><span class="atag ret">RETAIL</span></div>
+        <div class="result-hero" style="padding:12px 16px;margin-bottom:10px">
+          <div><div class="rh-label">소매 익스포저 월말 속보</div><div class="rh-value" style="font-size:26px">36.0<span class="rh-unit">조</span></div><div class="rh-delta"><span class="du">▲+1.4%</span> 전월 35.5조</div></div>
+          <div><div class="rh-ml">신뢰구간</div><div class="rh-mv">35.1 ~ 36.9조</div></div>
+          <div><div class="rh-conf-lbl">신뢰도</div><div class="rh-conf-val" style="font-size:18px">90%</div></div>
+        </div>
+        <div class="tbl"><table>
+          <thead><tr><th>세부 자산분류(별표3)</th><th>방법론</th><th>전월 확정</th><th>속보치</th><th>증감</th><th>신뢰도</th></tr></thead>
+          <tbody>
+            <tr><td>주거용 부동산</td><td><span class="mtag airb">A-IRB</span></td><td>24.2조</td><td>24.5조</td><td class="du">▲+1.2%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:93%"></div></div><div class="cbar-pct">93%</div></div></td></tr>
+            <tr><td>회전형 적격소매</td><td><span class="mtag airb">A-IRB</span></td><td>3.4조</td><td>3.4조</td><td class="dd">→ 0.0%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:91%"></div></div><div class="cbar-pct">91%</div></div></td></tr>
+            <tr><td>기타 소매</td><td><span class="mtag sa">SA</span></td><td>7.9조</td><td>8.1조</td><td class="du">▲+2.5%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:84%"></div></div><div class="cbar-pct">84%</div></div></td></tr>
+          </tbody>
+          <tfoot><tr><td>소매 익스포저 합계</td><td></td><td>35.5조</td><td>36.0조</td><td class="du">▲+1.4%</td><td></td></tr></tfoot>
+        </table></div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">국가·공공기관 속보치</div><span class="atag sov">SOVEREIGN</span></div>
+        <div class="tbl"><table>
+          <thead><tr><th>세부 자산분류(별표3)</th><th>방법론</th><th>전월</th><th>속보</th><th>증감</th><th>신뢰도</th></tr></thead>
+          <tbody>
+            <tr><td>중앙정부·중앙은행</td><td><span class="mtag sa">SA</span></td><td>2.0조</td><td>2.1조</td><td class="du">▲+5.0%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:92%"></div></div><div class="cbar-pct">92%</div></div></td></tr>
+            <tr><td>지방정부·지자체</td><td><span class="mtag sa">SA</span></td><td>1.7조</td><td>1.8조</td><td class="du">▲+5.9%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:90%"></div></div><div class="cbar-pct">90%</div></div></td></tr>
+            <tr><td>공공기관(PSE)</td><td><span class="mtag sa">SA</span></td><td>6.2조</td><td>6.4조</td><td class="du">▲+3.2%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:87%"></div></div><div class="cbar-pct">87%</div></div></td></tr>
+            <tr><td>국가</td><td><span class="mtag firb">F-IRB</span></td><td>3.0조</td><td>3.1조</td><td class="du">▲+3.3%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:85%"></div></div><div class="cbar-pct">85%</div></div></td></tr>
+            <tr><td>금융기관</td><td><span class="mtag firb">F-IRB</span></td><td>5.2조</td><td>5.4조</td><td class="du">▲+3.8%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:83%"></div></div><div class="cbar-pct">83%</div></div></td></tr>
+          </tbody>
+          <tfoot><tr><td>국가·공공기관 합계</td><td></td><td>18.4조</td><td>18.8조</td><td class="du">▲+2.2%</td><td></td></tr></tfoot>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">부동산·기타자산 속보치</div><span class="atag oth">OTHER (SA)</span></div>
+        <div class="tbl"><table>
+          <thead><tr><th>세부 자산분류(별표3)</th><th>방법론</th><th>전월</th><th>속보</th><th>증감</th><th>신뢰도</th></tr></thead>
+          <tbody>
+            <tr><td>비주거용 부동산</td><td><span class="mtag sa">SA</span></td><td>4.9조</td><td>4.6조</td><td class="dd">▼-6.1%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill l" style="width:69%"></div></div><div class="cbar-pct">69%</div></div></td></tr>
+            <tr><td>주식 익스포저</td><td><span class="mtag sa">SA</span></td><td>4.5조</td><td>4.5조</td><td class="dd">→ 0.0%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:85%"></div></div><div class="cbar-pct">85%</div></div></td></tr>
+            <tr><td>기타자산</td><td><span class="mtag sa">SA</span></td><td>3.7조</td><td>3.7조</td><td class="dd">→ 0.0%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:89%"></div></div><div class="cbar-pct">89%</div></div></td></tr>
+          </tbody>
+          <tfoot><tr><td>부동산·기타자산 합계</td><td></td><td>12.6조</td><td>12.8조</td><td class="du">▲+1.6%</td><td></td></tr></tfoot>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ 방법론별 서브패널 -->
+  <div class="stab-panel" id="flash-meth">
+    <div class="dbanner"><span>ℹ️</span>방법론별 독립 모델 적용 — SA / F-IRB / A-IRB 각각 별도 피처셋·가중치 공식 사용</div>
+    <div class="g3">
+      <!-- SA -->
+      <div class="card" style="border-top:3px solid var(--SA)">
+        <div class="card-hd"><div class="card-title" style="color:var(--SA)">표준방법 (SA) 모델</div><span class="mtag sa">SA</span></div>
+        <div class="result-hero" style="padding:11px 14px;margin-bottom:10px;">
+          <div><div class="rh-label" style="color:var(--SA)">SA 속보치</div><div class="rh-value" style="color:var(--SA);font-size:24px">35.3<span class="rh-unit">조</span></div></div>
+          <div style="text-align:center"><div class="rh-conf-lbl">신뢰도</div><div class="rh-conf-val" style="font-size:18px">82%</div></div>
+        </div>
+        <div style="font-size:11px;color:var(--ink2);margin-bottom:8px;line-height:1.6"><strong>SA 전용 피처:</strong> 위험가중치 등급표 변동, 익스포저 증감, 감독당국 고시 변경 여부</div>
+        <div class="tbl"><table>
+          <thead><tr><th>모델</th><th>추정값</th><th>가중치</th></tr></thead>
+          <tbody>
+            <tr><td>실측 외삽</td><td>35.1조</td><td style="color:var(--SA)">65%</td></tr>
+            <tr><td>ARIMA</td><td>35.6조</td><td>12%</td></tr>
+            <tr><td>XGBoost(SA)</td><td>35.5조</td><td>13%</td></tr>
+            <tr><td>거시 조정항</td><td>+0.10조</td><td>10%</td></tr>
+          </tbody>
+          <tfoot><tr><td>앙상블</td><td>35.3조</td><td>100%</td></tr></tfoot>
+        </table></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">MAPE 1.4% (12개월) | Walk-Forward CV 5 Folds</div>
+      </div>
+      <!-- F-IRB -->
+      <div class="card" style="border-top:3px solid var(--FIRB)">
+        <div class="card-hd"><div class="card-title" style="color:var(--FIRB)">기본내부등급법 (F-IRB) 모델</div><span class="mtag firb">F-IRB</span></div>
+        <div class="result-hero" style="padding:11px 14px;margin-bottom:10px;">
+          <div><div class="rh-label" style="color:var(--FIRB)">F-IRB 속보치</div><div class="rh-value" style="color:var(--FIRB);font-size:24px">87.3<span class="rh-unit">조</span></div></div>
+          <div style="text-align:center"><div class="rh-conf-lbl">신뢰도</div><div class="rh-conf-val" style="font-size:18px">85%</div></div>
+        </div>
+        <div style="font-size:11px;color:var(--ink2);margin-bottom:8px;line-height:1.6"><strong>F-IRB 전용 피처:</strong> 내부등급 PD 변동, 감독당국 LGD/EAD 고정값, 상관계수 ρ</div>
+        <div class="tbl"><table>
+          <thead><tr><th>모델</th><th>추정값</th><th>가중치</th></tr></thead>
+          <tbody>
+            <tr><td>실측 외삽</td><td>87.0조</td><td style="color:var(--FIRB)">68%</td></tr>
+            <tr><td>ARIMA</td><td>87.8조</td><td>9%</td></tr>
+            <tr><td>XGBoost(IRB)</td><td>87.6조</td><td>13%</td></tr>
+            <tr><td>거시 조정항</td><td>+0.05조</td><td>10%</td></tr>
+          </tbody>
+          <tfoot><tr><td>앙상블</td><td>87.3조</td><td>100%</td></tr></tfoot>
+        </table></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">MAPE 1.1% (12개월) | Walk-Forward CV 5 Folds</div>
+      </div>
+      <!-- A-IRB -->
+      <div class="card" style="border-top:3px solid var(--AIRB)">
+        <div class="card-hd"><div class="card-title" style="color:var(--AIRB)">고급내부등급법 (A-IRB) 모델</div><span class="mtag airb">A-IRB</span></div>
+        <div class="result-hero" style="padding:11px 14px;margin-bottom:10px;">
+          <div><div class="rh-label" style="color:var(--AIRB)">A-IRB 속보치</div><div class="rh-value" style="color:var(--AIRB);font-size:24px">27.9<span class="rh-unit">조</span></div></div>
+          <div style="text-align:center"><div class="rh-conf-lbl">신뢰도</div><div class="rh-conf-val" style="font-size:18px">87%</div></div>
+        </div>
+        <div style="font-size:11px;color:var(--ink2);margin-bottom:8px;line-height:1.6"><strong>A-IRB 전용 피처:</strong> 내부 PD/LGD/EAD 전체 추정, 등급 마이그레이션, 상관계수 ρ, M 잔존만기</div>
+        <div class="tbl"><table>
+          <thead><tr><th>모델</th><th>추정값</th><th>가중치</th></tr></thead>
+          <tbody>
+            <tr><td>실측 외삽</td><td>27.8조</td><td style="color:var(--AIRB)">70%</td></tr>
+            <tr><td>LSTM(IRB)</td><td>28.2조</td><td>9%</td></tr>
+            <tr><td>XGBoost(IRB)</td><td>28.0조</td><td>11%</td></tr>
+            <tr><td>거시 조정항</td><td>+0.00조</td><td>10%</td></tr>
+          </tbody>
+          <tfoot><tr><td>앙상블</td><td>27.9조</td><td>100%</td></tr></tfoot>
+        </table></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">MAPE 0.9% (12개월) | Walk-Forward CV 5 Folds</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><div class="card-title">방법론별 전용 피처 중요도</div></div>
+      <div class="g3">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--SA);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">SA 주요 피처</div>
+          <div class="feat-rows">
+            <div class="feat-row"><div class="feat-name" style="width:130px">위험가중치 등급 변동</div><div class="feat-trk"><div class="feat-fill" style="width:85%"></div></div><div class="feat-pct">85%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">익스포저 총액 추세</div><div class="feat-trk"><div class="feat-fill" style="width:72%"></div></div><div class="feat-pct">72%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">감독당국 고시 변경</div><div class="feat-trk"><div class="feat-fill" style="width:45%"></div></div><div class="feat-pct">45%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">거시경제 변수</div><div class="feat-trk"><div class="feat-fill" style="width:35%"></div></div><div class="feat-pct">35%</div></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--FIRB);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">F-IRB 주요 피처</div>
+          <div class="feat-rows">
+            <div class="feat-row"><div class="feat-name" style="width:130px">내부 PD 변화율</div><div class="feat-trk"><div class="feat-fill" style="width:88%"></div></div><div class="feat-pct">88%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">전기 RWA 밀도</div><div class="feat-trk"><div class="feat-fill" style="width:82%"></div></div><div class="feat-pct">82%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">EAD 증감율</div><div class="feat-trk"><div class="feat-fill" style="width:65%"></div></div><div class="feat-pct">65%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">상관계수 ρ 추세</div><div class="feat-trk"><div class="feat-fill" style="width:48%"></div></div><div class="feat-pct">48%</div></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--AIRB);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">A-IRB 주요 피처</div>
+          <div class="feat-rows">
+            <div class="feat-row"><div class="feat-name" style="width:130px">내부 PD/LGD/EAD</div><div class="feat-trk"><div class="feat-fill" style="width:92%"></div></div><div class="feat-pct">92%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">등급 마이그레이션</div><div class="feat-trk"><div class="feat-fill" style="width:78%"></div></div><div class="feat-pct">78%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">잔존만기 M 분포</div><div class="feat-trk"><div class="feat-fill" style="width:55%"></div></div><div class="feat-pct">55%</div></div>
+            <div class="feat-row"><div class="feat-name" style="width:130px">포트폴리오 믹스</div><div class="feat-trk"><div class="feat-fill" style="width:50%"></div></div><div class="feat-pct">50%</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 신호변수 -->
+  <div class="card">
+    <div class="card-hd"><div class="card-title">실시간 신호 변수</div><span class="chip warn">수동 입력</span></div>
+    <div class="sig-grid">
+      <div class="sig"><div class="sig-name">기준금리</div><div class="sig-val">3.50%</div><div class="sig-tr"><span class="fl">→ 동결</span></div></div>
+      <div class="sig"><div class="sig-name">USD/KRW</div><div class="sig-val">1,382원</div><div class="sig-tr"><span class="up">▲ 상승</span></div></div>
+      <div class="sig"><div class="sig-name">신규여신 MTD</div><div class="sig-val">+1.4%</div><div class="sig-tr"><span class="up">▲</span></div></div>
+      <div class="sig"><div class="sig-name">평균 PD 변동</div><div class="sig-val">+2bp</div><div class="sig-tr"><span class="up">▲</span></div></div>
+      <div class="sig"><div class="sig-name">연체율 (잠정)</div><div class="sig-val">0.58%</div><div class="sig-tr"><span class="up">▲ 소폭</span></div></div>
+      <div class="sig"><div class="sig-name">신용스프레드</div><div class="sig-val">+8bp</div><div class="sig-tr"><span class="up">▲</span></div></div>
+    </div>
+  </div>
+  <div id="fguide-M" class="alert info"><div class="alert-icon">💡</div><div><strong>월중 신뢰도 가이드:</strong> D+1~5 45%(모델주도) → D+11~15 75% → D+20+ 94%(실측주도). SA MAPE가 A-IRB보다 높음(복잡한 계절성).</div></div>
+  
+</div><!-- /pg-flash -->
+
+
+<!-- ══ INPUT (히스토리컬 입력) ══ -->
+<div class="pg" id="pg-input">
+  <div class="pg-title">
+    <div><h2>히스토리컬 데이터 입력</h2>
+    <div class="sub">계정과목(상위) → 산출방법론(하위) 계층 · 일별 BS금액(별표3 기준) 갱신</div>
+    </div>
+  </div>
+
+  <div class="stab-bar">
+    <div class="stab active" onclick="switchStab('input','agg',this)">📊 전체 집계</div>
+    <div class="stab" onclick="switchStab('input','byacct',this)">🏦 계정과목별 입력</div>
+    <div class="stab" onclick="switchStab('input','bs',this)">📅 일별 BS금액 입력</div>
+    <div class="stab" onclick="switchStab('input','rc',this)">📐 전월 RC 관리</div>
+    <div class="stab" onclick="switchStab('input','upload',this)">📁 CSV 일괄 업로드</div>
+  </div>
+
+  <!-- ─ 전체 집계 -->
+  <div class="stab-panel active" id="input-agg">
+    <div class="card">
+      <div class="card-hd"><div class="card-title">전체 집계 데이터 입력</div><span class="chip M1">월별 · 별표3 기준</span></div>
+      <div class="frow c4">
+        <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+        <div class="fg"><label>총 EAD (억원)</label><input type="number" value="2285000"/></div>
+        <div class="fg"><label>총 확정 RWA (억원)</label><input type="number" value="1505000"/></div>
+        <div class="fg"><label>RWA 밀도 (%)</label><input type="number" value="65.9" step="0.1"/></div>
+      </div>
+      <div class="frow c4">
+        <div class="fg"><label>SA RWA (억원)</label><input type="number" value="353000"/></div>
+        <div class="fg"><label>F-IRB RWA (억원)</label><input type="number" value="873000"/></div>
+        <div class="fg"><label>A-IRB RWA (억원)</label><input type="number" value="279000"/></div>
+        <div class="fg"><label>SA 비중 (%)</label><input type="number" value="23.5" step="0.1" readonly style="background:var(--bg2)"/></div>
+      </div>
+      <div class="btn-grp"><button class="btn btn-p">저장</button></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><div class="card-title">월별 집계 히스토리</div></div>
+      <div class="tbl"><table>
+        <thead><tr><th>연월</th><th>총 EAD</th><th>SA RWA</th><th>F-IRB</th><th>A-IRB</th><th>합계 RWA</th><th>밀도</th></tr></thead>
+        <tbody id="hist-agg-M"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ─ 계정과목별 -->
+  <div class="stab-panel" id="input-byacct">
+    <div class="g2">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">법인(기업) 익스포저 입력</div><span class="atag corp">CORPORATE</span></div>
+        <div class="frow c3">
+          <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+          <div class="fg"><label>대기업 EAD (억원)</label><input type="number" value="2872000"/></div>
+          <div class="fg"><label>대기업 RWA (F-IRB)</label><input type="number" value="421000"/></div>
+        </div>
+        <div class="frow c3">
+          <div class="fg"><label>중소기업 EAD</label><input type="number" value="1583000"/></div>
+          <div class="fg"><label>중소기업 RWA (F-IRB)</label><input type="number" value="218000"/></div>
+          <div class="fg"><label>특수여신·SL RWA (F-IRB)</label><input type="number" value="78000"/></div>
+        </div>
+        <div class="frow c3">
+          <div class="fg"><label>중소법인·SME RWA (SA)</label><input type="number" value="40000"/></div>
+          <div class="fg"><label>평균 PD (%)</label><input type="number" value="1.24" step="0.01"/></div>
+          <div class="fg"><label>감독당국 LGD (%)</label><input type="number" value="45.0" step="0.1"/></div>
+        </div>
+        <div class="btn-grp"><button class="btn btn-p btn-sm">저장</button></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">소매 익스포저 입력</div><span class="atag ret">RETAIL</span></div>
+        <div class="frow c3">
+          <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+          <div class="fg"><label>주거용부동산 EAD</label><input type="number" value="4864000"/></div>
+          <div class="fg"><label>주거용부동산 RWA (A-IRB)</label><input type="number" value="242000"/></div>
+        </div>
+        <div class="frow c3">
+          <div class="fg"><label>회전형적격 EAD</label><input type="number" value="286000"/></div>
+          <div class="fg"><label>회전형적격 RWA (A-IRB)</label><input type="number" value="34000"/></div>
+          <div class="fg"><label>기타소매 RWA (SA)</label><input type="number" value="79000"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>소매 평균 PD (%)</label><input type="number" value="0.68" step="0.01"/></div>
+          <div class="fg"><label>소매 평균 LGD (%)</label><input type="number" value="22.5" step="0.1"/></div>
+        </div>
+        <div class="btn-grp"><button class="btn btn-p btn-sm">저장</button></div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">국가·공공기관 입력</div><span class="atag sov">SOVEREIGN</span></div>
+        <div class="frow c3">
+          <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+          <div class="fg"><label>중앙정부·중앙은행 RWA (SA)</label><input type="number" value="20000"/></div>
+          <div class="fg"><label>지방정부·지자체 RWA (SA)</label><input type="number" value="17000"/></div>
+        </div>
+        <div class="frow c3">
+          <div class="fg"><label>공공기관(PSE) RWA (SA)</label><input type="number" value="62000"/></div>
+          <div class="fg"><label>국가 RWA (F-IRB)</label><input type="number" value="30000"/></div>
+          <div class="fg"><label>금융기관 RWA (F-IRB)</label><input type="number" value="52000"/></div>
+        </div>
+        <div class="frow c1">
+          <div class="fg"><label>평균 PD (%)</label><input type="number" value="0.12" step="0.01"/></div>
+        </div>
+        <div class="btn-grp"><button class="btn btn-p btn-sm">저장</button></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">부동산·기타자산 입력</div><span class="atag oth">OTHER (SA)</span></div>
+        <div class="frow c3">
+          <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+          <div class="fg"><label>비주거용부동산 RWA (SA)</label><input type="number" value="49000"/></div>
+          <div class="fg"><label>주식익스포저 RWA (SA)</label><input type="number" value="45000"/></div>
+        </div>
+        <div class="frow c1">
+          <div class="fg"><label>기타자산 RWA (SA)</label><input type="number" value="37000"/></div>
+        </div>
+        <div class="btn-grp"><button class="btn btn-p btn-sm">저장</button></div>
+      </div>
+    </div>
+
+    <!-- ─ 방법론별 (SA/F-IRB/A-IRB) -->
+    <div class="g3">
+      <div class="card" style="border-top:3px solid var(--SA)">
+        <div class="card-hd"><div class="card-title" style="color:var(--SA)">SA 데이터 입력</div><span class="mtag sa">표준방법</span></div>
+        <div class="frow c2">
+          <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+          <div class="fg"><label>총 SA EAD (억원)</label><input type="number" value="5301000"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>SA 확정 RWA (억원)</label><input type="number" value="353000"/></div>
+          <div class="fg"><label>SA 평균 위험가중치 (%)</label><input type="number" value="66.6" step="0.1"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>중앙정부·지방정부 RWA</label><input type="number" value="37000"/></div>
+          <div class="fg"><label>공공기관(PSE) RWA</label><input type="number" value="62000"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>중소법인·SME / 기타소매 RWA</label><input type="number" value="119000"/></div>
+          <div class="fg"><label>부동산·기타자산·주식 RWA</label><input type="number" value="131000"/></div>
+        </div>
+        <div class="frow c1">
+          <div class="fg"><label>(참고) 주식익스포저 RWA — RW100% 적용</label><input type="number" value="45000"/></div>
+        </div>
+        <div class="btn-grp"><button class="btn btn-sa btn-sm">SA 저장</button></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--FIRB)">
+        <div class="card-hd"><div class="card-title" style="color:var(--FIRB)">F-IRB 데이터 입력</div><span class="mtag firb">기본내부등급</span></div>
+        <div class="frow c2">
+          <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+          <div class="fg"><label>총 F-IRB EAD (억원)</label><input type="number" value="6160000"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>F-IRB 확정 RWA</label><input type="number" value="861000"/></div>
+          <div class="fg"><label>F-IRB RWA 밀도 (%)</label><input type="number" value="13.98" step="0.01"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>평균 PD (%)</label><input type="number" value="0.78" step="0.01"/></div>
+          <div class="fg"><label>감독당국 LGD (%)</label><input type="number" value="45.0" step="0.1"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>대기업·중소기업 RWA</label><input type="number" value="639000"/></div>
+          <div class="fg"><label>국가·금융기관 RWA</label><input type="number" value="82000"/></div>
+        </div>
+        <div class="btn-grp"><button class="btn btn-firb btn-sm">F-IRB 저장</button></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--AIRB)">
+        <div class="card-hd"><div class="card-title" style="color:var(--AIRB)">A-IRB 데이터 입력</div><span class="mtag airb">고급내부등급</span></div>
+        <div class="frow c2">
+          <div class="fg"><label>기준 연월</label><input type="month" value="2026-04"/></div>
+          <div class="fg"><label>총 A-IRB EAD (억원)</label><input type="number" value="5150000"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>A-IRB 확정 RWA</label><input type="number" value="279000"/></div>
+          <div class="fg"><label>A-IRB RWA 밀도 (%)</label><input type="number" value="5.42" step="0.01"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>평균 PD (%)</label><input type="number" value="0.55" step="0.01"/></div>
+          <div class="fg"><label>평균 LGD (%)</label><input type="number" value="19.8" step="0.1"/></div>
+        </div>
+        <div class="frow c2">
+          <div class="fg"><label>평균 EAD CCF (%)</label><input type="number" value="94.2" step="0.1"/></div>
+          <div class="fg"><label>평균 잔존만기 M</label><input type="number" value="15.2" step="0.1"/></div>
+        </div>
+        <div class="btn-grp"><button class="btn btn-airb btn-sm">A-IRB 저장</button></div>
+      </div>
+    </div>
+
+    <!-- 방법론별 히스토리 테이블 -->
+    <div class="card">
+      <div class="card-hd"><div class="card-title">방법론별 히스토리 현황</div></div>
+      <div class="tbl"><table>
+        <thead><tr><th>연월</th><th>SA EAD</th><th>SA RWA</th><th>SA밀도</th><th>F-IRB EAD</th><th>F-IRB EAD</th><th>F-IRB RWA</th><th>F-IRB밀도</th><th>A-IRB EAD</th><th>A-IRB RWA</th><th>A-IRB밀도</th><th>합계</th></tr></thead>
+        <tbody id="hist-meth"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ─ 일별 BS금액 입력 ─ -->
+  <div class="stab-panel" id="input-bs">
+    <div class="dbanner"><span>📅</span>
+      별표3 자산분류 기준 세그먼트별 일별 BS금액을 입력합니다.
+      입력 즉시 전월 RC(Risk Component)를 적용하여 RWA 속보치가 갱신됩니다.
+    </div>
+    <div class="stab-bar" id="bs-stab-bar" style="margin-bottom:14px">
+      <div class="stab active" onclick="switchBSTab('bs-screen',this)">🖊 화면 직접 입력</div>
+      <div class="stab" onclick="switchBSTab('bs-csv',this)">📁 CSV 일괄 업로드</div>
+    </div>
+
+    <!-- 화면 직접 입력 -->
+    <div id="bs-screen" style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">기준일 설정</div>
+          <span class="chip M2" id="bs-date-chip">2026년 5월 19일</span>
+        </div>
+        <div class="frow c4">
+          <div class="fg"><label>기준 연월</label><select id="bs-month"><option>2026년 5월</option><option>2026년 4월</option></select></div>
+          <div class="fg"><label>기준일</label><input type="date" id="bs-date" value="2026-05-19" onchange="updateBSDate()"/></div>
+          <div class="fg"><label>영업일 (D+)</label><input type="number" id="bs-bday" value="13" style="background:var(--bg2)" readonly/></div>
+          <div class="fg"><label>입력 단위</label><select id="bs-unit"><option value="100m">억원</option><option value="1t">조원</option></select></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">별표3 자산분류 기준 BS금액 입력</div>
+          <div class="btn-grp">
+            <button class="btn btn-p btn-sm" onclick="calcDailyRWA()">⚡ RWA 즉시 산출</button>
+            <button class="btn btn-s btn-sm" onclick="saveDailyBS()">💾 저장</button>
+          </div>
+        </div>
+        <div class="tbl"><table id="bs-input-table">
+          <thead><tr>
+            <th>자산분류(별표3)</th><th>세그먼트</th><th>방법론</th><th>입수</th>
+            <th>전일 BS(억원)</th><th>당일 BS(억원)</th><th>전일比</th>
+            <th>RC(전월)</th><th>속보RWA</th><th>RWA변동</th>
+          </tr></thead>
+          <tbody id="bs-tbody">
+            <!-- SA: 중앙정부·중앙은행 -->
+            <tr data-seg="SA_CNTL" data-method="sa" data-rc="0.05" data-prev="420000">
+              <td rowspan="4" style="vertical-align:middle;font-weight:600;background:var(--sovlt);color:var(--sov)">국가·공공기관</td>
+              <td>중앙정부·중앙은행</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">420,000</td>
+              <td><input type="number" class="bs-inp" data-seg="SA_CNTL" value="441000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-SA_CNTL" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+21,000</td>
+              <td style="font-size:10px;color:var(--SA)">RW 0~20%</td>
+              <td class="bs-rwa" id="rwa-SA_CNTL" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--SA);text-align:right;font-weight:600">22,050</td>
+              <td class="bs-drwa" id="drwa-SA_CNTL" style="font-size:10px;color:var(--danger)">▲+1,050</td>
+            </tr>
+            <tr data-seg="SA_LGRV" data-method="sa" data-rc="0.20" data-prev="360000">
+              <td>지방정부·지자체</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">360,000</td>
+              <td><input type="number" class="bs-inp" data-seg="SA_LGRV" value="376000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-SA_LGRV" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+16,000</td>
+              <td style="font-size:10px;color:var(--SA)">RW 20%</td>
+              <td class="bs-rwa" id="rwa-SA_LGRV" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--SA);text-align:right;font-weight:600">75,200</td>
+              <td class="bs-drwa" id="drwa-SA_LGRV" style="font-size:10px;color:var(--danger)">▲+3,200</td>
+            </tr>
+            <tr data-seg="SA_PSE" data-method="sa" data-rc="0.20" data-prev="1280000">
+              <td>공공기관(PSE)</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">1,280,000</td>
+              <td><input type="number" class="bs-inp" data-seg="SA_PSE" value="1320000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-SA_PSE" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+40,000</td>
+              <td style="font-size:10px;color:var(--SA)">RW 20%</td>
+              <td class="bs-rwa" id="rwa-SA_PSE" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--SA);text-align:right;font-weight:600">264,000</td>
+              <td class="bs-drwa" id="drwa-SA_PSE" style="font-size:10px;color:var(--danger)">▲+8,000</td>
+            </tr>
+            <tr data-seg="SA_BANK" data-method="sa" data-rc="0.20" data-prev="820000">
+              <td>금융기관(SA)</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">820,000</td>
+              <td><input type="number" class="bs-inp" data-seg="SA_BANK" value="845000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-SA_BANK" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+25,000</td>
+              <td style="font-size:10px;color:var(--SA)">RW 20%</td>
+              <td class="bs-rwa" id="rwa-SA_BANK" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--SA);text-align:right;font-weight:600">169,000</td>
+              <td class="bs-drwa" id="drwa-SA_BANK" style="font-size:10px;color:var(--danger)">▲+5,000</td>
+            </tr>
+            <!-- F-IRB: 국가·금융기관 -->
+            <tr data-seg="FIRB_SVRN" data-method="firb" data-rc="0.0321" data-prev="620000">
+              <td rowspan="2" style="vertical-align:middle;font-weight:600;background:var(--FIRBlt);color:var(--FIRB)">국가·금융<br>(F-IRB)</td>
+              <td>국가(F-IRB)</td><td><span class="mtag firb" style="font-size:9px">F-IRB</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">620,000</td>
+              <td><input type="number" class="bs-inp" data-seg="FIRB_SVRN" value="641000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-FIRB_SVRN" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+21,000</td>
+              <td style="font-size:10px;color:var(--FIRB)">PD 0.05%<br>K=3.21%</td>
+              <td class="bs-rwa" id="rwa-FIRB_SVRN" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--FIRB);text-align:right;font-weight:600">20,577</td>
+              <td class="bs-drwa" id="drwa-FIRB_SVRN" style="font-size:10px;color:var(--danger)">▲+675</td>
+            </tr>
+            <tr data-seg="FIRB_BANK" data-method="firb" data-rc="0.0543" data-prev="1084000">
+              <td>금융기관(F-IRB)</td><td><span class="mtag firb" style="font-size:9px">F-IRB</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">1,084,000</td>
+              <td><input type="number" class="bs-inp" data-seg="FIRB_BANK" value="1121000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-FIRB_BANK" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+37,000</td>
+              <td style="font-size:10px;color:var(--FIRB)">PD 0.08%<br>K=5.43%</td>
+              <td class="bs-rwa" id="rwa-FIRB_BANK" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--FIRB);text-align:right;font-weight:600">60,870</td>
+              <td class="bs-drwa" id="drwa-FIRB_BANK" style="font-size:10px;color:var(--danger)">▲+2,009</td>
+            </tr>
+            <!-- 법인(기업) 익스포저 -->
+            <tr data-seg="FIRB_CORP_LG" data-method="firb" data-rc="0.1467" data-prev="2872000">
+              <td rowspan="4" style="vertical-align:middle;font-weight:600;background:var(--corplt);color:var(--corp)">법인(기업)<br>익스포저</td>
+              <td>대기업(F-IRB)</td><td><span class="mtag firb" style="font-size:9px">F-IRB</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">2,872,000</td>
+              <td><input type="number" class="bs-inp" data-seg="FIRB_CORP_LG" value="2934000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-FIRB_CORP_LG" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+62,000</td>
+              <td style="font-size:10px;color:var(--FIRB)">PD 0.82%<br>K=14.67%</td>
+              <td class="bs-rwa" id="rwa-FIRB_CORP_LG" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--FIRB);text-align:right;font-weight:600">430,280</td>
+              <td class="bs-drwa" id="drwa-FIRB_CORP_LG" style="font-size:10px;color:var(--danger)">▲+9,095</td>
+            </tr>
+            <tr data-seg="FIRB_CORP_SM" data-method="firb" data-rc="0.1952" data-prev="1583000">
+              <td>중소기업(F-IRB)</td><td><span class="mtag firb" style="font-size:9px">F-IRB</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">1,583,000</td>
+              <td><input type="number" class="bs-inp" data-seg="FIRB_CORP_SM" value="1621000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-FIRB_CORP_SM" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+38,000</td>
+              <td style="font-size:10px;color:var(--FIRB)">PD 1.42%<br>K=19.52%</td>
+              <td class="bs-rwa" id="rwa-FIRB_CORP_SM" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--FIRB);text-align:right;font-weight:600">316,419</td>
+              <td class="bs-drwa" id="drwa-FIRB_CORP_SM" style="font-size:10px;color:var(--danger)">▲+7,418</td>
+            </tr>
+            <tr data-seg="FIRB_CORP_SL" data-method="firb" data-rc="0.1824" data-prev="521000" class="bs-nomatch">
+              <td>특수여신·SL(F-IRB)</td><td><span class="mtag firb" style="font-size:9px">F-IRB</span></td>
+              <td><span style="background:#fdf3e6;color:#5c3d0a;border:1px solid rgba(92,61,10,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right;color:var(--muted)">521,000</td>
+              <td><input type="number" class="bs-inp" data-seg="FIRB_CORP_SL" placeholder="미입수" disabled style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2);font-family:'JetBrains Mono',monospace;color:var(--muted)"/></td>
+              <td style="color:var(--muted)">—</td>
+              <td style="font-size:10px;color:var(--muted)">K=18.24%<br>패턴외삽</td>
+              <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-align:right">95,011</td>
+              <td style="font-size:10px;color:var(--muted)">외삽</td>
+            </tr>
+            <tr data-seg="SA_CORP" data-method="sa" data-rc="0.75" data-prev="533000">
+              <td>중소법인·SME(SA)</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">533,000</td>
+              <td><input type="number" class="bs-inp" data-seg="SA_CORP" value="547000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-SA_CORP" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+14,000</td>
+              <td style="font-size:10px;color:var(--SA)">RW 75%</td>
+              <td class="bs-rwa" id="rwa-SA_CORP" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--SA);text-align:right;font-weight:600">410,250</td>
+              <td class="bs-drwa" id="drwa-SA_CORP" style="font-size:10px;color:var(--danger)">▲+10,500</td>
+            </tr>
+            <!-- 소매 익스포저 -->
+            <tr data-seg="AIRB_RETL_RE" data-method="airb" data-rc="0.0496" data-prev="4864000">
+              <td rowspan="3" style="vertical-align:middle;font-weight:600;background:var(--retlt);color:var(--ret)">소매<br>익스포저</td>
+              <td>주거용 부동산(A-IRB)</td><td><span class="mtag airb" style="font-size:9px">A-IRB</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">4,864,000</td>
+              <td><input type="number" class="bs-inp" data-seg="AIRB_RETL_RE" value="4912000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-AIRB_RETL_RE" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+48,000</td>
+              <td style="font-size:10px;color:var(--AIRB)">K=4.96%</td>
+              <td class="bs-rwa" id="rwa-AIRB_RETL_RE" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--AIRB);text-align:right;font-weight:600">243,635</td>
+              <td class="bs-drwa" id="drwa-AIRB_RETL_RE" style="font-size:10px;color:var(--danger)">▲+2,381</td>
+            </tr>
+            <tr data-seg="AIRB_RETL_QR" data-method="airb" data-rc="0.1184" data-prev="286000">
+              <td>회전형 적격소매(A-IRB)</td><td><span class="mtag airb" style="font-size:9px">A-IRB</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">286,000</td>
+              <td><input type="number" class="bs-inp" data-seg="AIRB_RETL_QR" value="289000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-AIRB_RETL_QR" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+3,000</td>
+              <td style="font-size:10px;color:var(--AIRB)">K=11.84%</td>
+              <td class="bs-rwa" id="rwa-AIRB_RETL_QR" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--AIRB);text-align:right;font-weight:600">34,218</td>
+              <td class="bs-drwa" id="drwa-AIRB_RETL_QR" style="font-size:10px;color:var(--danger)">▲+355</td>
+            </tr>
+            <tr data-seg="SA_RETL" data-method="sa" data-rc="0.75" data-prev="1080000">
+              <td>기타 소매(SA 75%)</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#e6f7ed;color:#0a5c2e;border:1px solid rgba(10,92,46,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right">1,080,000</td>
+              <td><input type="number" class="bs-inp" data-seg="SA_RETL" value="1106000" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg);font-family:'JetBrains Mono',monospace;text-align:right" onchange="onBSChange(this)"/></td>
+              <td class="bs-diff" id="diff-SA_RETL" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--good)">+26,000</td>
+              <td style="font-size:10px;color:var(--SA)">RW 75%</td>
+              <td class="bs-rwa" id="rwa-SA_RETL" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--SA);text-align:right;font-weight:600">829,500</td>
+              <td class="bs-drwa" id="drwa-SA_RETL" style="font-size:10px;color:var(--danger)">▲+19,500</td>
+            </tr>
+            <!-- 부동산 담보 / 주식 / 기타 -->
+            <tr data-seg="SA_NRRE" data-method="sa" data-rc="1.00" data-prev="248000" class="bs-nomatch">
+              <td style="font-weight:600;background:var(--bg);color:var(--muted)">비주거용 부동산</td>
+              <td>비주거용 부동산(SA)</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#fdf3e6;color:#5c3d0a;border:1px solid rgba(92,61,10,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right;color:var(--muted)">248,000</td>
+              <td><input disabled placeholder="미입수" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2);color:var(--muted)"/></td>
+              <td style="color:var(--muted)">—</td><td style="font-size:10px;color:var(--muted)">RW 100%</td>
+              <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-align:right">248,000</td>
+              <td style="font-size:10px;color:var(--muted)">외삽</td>
+            </tr>
+            <tr data-seg="SA_EQU" data-method="sa" data-rc="1.00" data-prev="123000" class="bs-nomatch">
+              <td style="font-weight:600;background:var(--SAlt);color:var(--SA)">주식 익스포저</td>
+              <td>주식 익스포저(SA)</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#fdf3e6;color:#5c3d0a;border:1px solid rgba(92,61,10,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right;color:var(--muted)">123,000</td>
+              <td><input disabled placeholder="미입수" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2);color:var(--muted)"/></td>
+              <td style="color:var(--muted)">—</td><td style="font-size:10px;color:var(--muted)">RW 100%</td>
+              <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-align:right">123,000</td>
+              <td style="font-size:10px;color:var(--muted)">외삽</td>
+            </tr>
+            <tr data-seg="SA_OTHR" data-method="sa" data-rc="1.00" data-prev="740000" class="bs-nomatch">
+              <td style="font-weight:600;background:var(--bg);color:var(--muted)">기타자산</td>
+              <td>기타자산(SA)</td><td><span class="mtag sa" style="font-size:9px">SA</span></td>
+              <td><span style="background:#fdf3e6;color:#5c3d0a;border:1px solid rgba(92,61,10,.2);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;text-align:right;color:var(--muted)">740,000</td>
+              <td><input disabled placeholder="미입수" style="width:100px;padding:3px 6px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2);color:var(--muted)"/></td>
+              <td style="color:var(--muted)">—</td><td style="font-size:10px;color:var(--muted)">RW 100%</td>
+              <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-align:right">740,000</td>
+              <td style="font-size:10px;color:var(--muted)">외삽</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--bdr2)">
+              <td colspan="4" style="font-weight:600;padding:7px 9px">일별입수 합계</td>
+              <td id="bs-total-prev" style="font-family:'JetBrains Mono',monospace;text-align:right;font-size:11px">—</td>
+              <td id="bs-total-cur" style="font-family:'JetBrains Mono',monospace;text-align:right;font-size:11px;font-weight:700">—</td>
+              <td id="bs-total-diff" style="font-family:'JetBrains Mono',monospace;font-size:11px">—</td>
+              <td></td>
+              <td id="bs-total-rwa" style="font-family:'JetBrains Mono',monospace;text-align:right;font-size:12px;font-weight:700;color:var(--M)">—</td>
+              <td id="bs-total-drwa" style="font-family:'JetBrains Mono',monospace;font-size:11px">—</td>
+            </tr>
+          </tfoot>
+        </table></div>
+        <div class="alert info" style="margin-top:10px">
+          <div class="alert-icon">💡</div>
+          <div>● 일별입수 세그먼트만 합계에 포함. ○ 월말확정 세그먼트는 패턴 외삽 자동 적용. 입력 후 ⚡ RWA 즉시 산출을 클릭하면 속보치 탭에 반영됩니다.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><div class="card-title">당월 일별 BS금액 이력</div><span class="chip M1">2026년 5월</span></div>
+        <div class="tbl"><table id="bs-history-table">
+          <thead><tr>
+            <th>D+</th><th>날짜</th>
+            <th style="color:var(--SA)">중앙정부<br>·중앙은행</th>
+            <th style="color:var(--SA)">지방정부<br>·지자체</th>
+            <th style="color:var(--SA)">공공기관<br>(PSE)</th>
+            <th style="color:var(--SA)">금융기관<br>(SA)</th>
+            <th style="color:var(--FIRB)">국가<br>(F-IRB)</th>
+            <th style="color:var(--FIRB)">금융기관<br>(F-IRB)</th>
+            <th style="color:var(--FIRB)">대기업</th>
+            <th style="color:var(--FIRB)">중소기업</th>
+            <th style="color:var(--SA)">SME<br>(SA)</th>
+            <th style="color:var(--AIRB)">주거용<br>부동산</th>
+            <th style="color:var(--AIRB)">회전형<br>적격</th>
+            <th style="color:var(--SA)">기타<br>소매</th>
+            <th>속보RWA</th><th>상태</th>
+          </tr></thead>
+          <tbody id="bs-hist-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- CSV 업로드 -->
+    <div id="bs-csv" style="display:none;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">일별 BS금액 CSV 업로드</div></div>
+        <div class="upload-zone" onclick="document.getElementById('bs-file-input').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--M)'"
+             ondragleave="this.style.borderColor=''"
+             ondrop="handleBSDrop(event)">
+          <div class="uz-icon">📅</div>
+          <div class="uz-text">일별 BS금액 CSV 드래그앤드롭 또는 클릭</div>
+          <div class="uz-sub">컬럼: 날짜, 세그먼트코드(별표3), BS금액(억원)</div>
+        </div>
+        <input type="file" id="bs-file-input" accept=".csv" style="display:none" onchange="handleBSFile(this)"/>
+        <div style="margin-top:10px;background:var(--bg);border-radius:5px;padding:10px 12px">
+          <div style="font-weight:700;color:var(--ink2);font-size:11px;margin-bottom:6px">세그먼트 코드표 (별표3 기준)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.8;color:var(--FIRB)">
+              SA_CNTL — 중앙정부·중앙은행<br>SA_LGRV — 지방정부·지자체<br>SA_PSE  — 공공기관(PSE)<br>SA_BANK — 금융기관(SA)<br>SA_CORP — 중소법인·SME<br>SA_RETL — 기타 소매<br>SA_RESI — 주거용부동산(SA)<br>SA_NRRE — 비주거용부동산<br>SA_EQU  — 주식익스포저<br>SA_OTHR — 기타자산
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.8;color:var(--FIRB)">
+              FIRB_SVRN    — 국가<br>FIRB_BANK    — 금융기관<br>FIRB_CORP_LG — 대기업<br>FIRB_CORP_SM — 중소기업<br>FIRB_CORP_SL — 특수여신·SL
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.8;color:var(--AIRB)">
+              AIRB_RETL_RE — 소매·주거용<br>AIRB_RETL_QR — 소매·회전형<br>AIRB_RETL_OT — 소매·기타
+            </div>
+          </div>
+        </div>
+        <div class="btn-grp" style="margin-top:10px">
+          <button class="btn btn-s btn-sm" onclick="downloadBSTemplate()">📥 템플릿 다운로드</button>
+        </div>
+      </div>
+      <div class="card" id="bs-preview-card" style="display:none">
+        <div class="card-hd">
+          <div class="card-title">업로드 미리보기</div>
+          <div class="btn-grp">
+            <button class="btn btn-p btn-sm" onclick="confirmBSUpload()">✓ 확인 및 적용</button>
+            <button class="btn btn-s btn-sm" onclick="cancelBSUpload()">✕ 취소</button>
+          </div>
+        </div>
+        <div class="tbl"><table><thead><tr>
+          <th>날짜</th><th>세그먼트코드</th><th>세그먼트명</th><th>BS금액</th><th>RC</th><th>속보RWA</th><th>유효성</th>
+        </tr></thead><tbody id="bs-preview-tbody"></tbody></table></div>
+      </div>
+      <div class="alert info"><div class="alert-icon">💡</div>
+        <div>유효성 검증: ① 세그먼트코드 일치 ② 전일比 ±10% 초과 이상값 ③ 월말확정 세그먼트 경고 ④ 숫자 형식·결측값</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ 전월 RC 관리 ─ -->
+  <div class="stab-panel" id="input-rc">
+    <div class="dbanner"><span>📐</span>
+      세그먼트별 전월 확정 RC(Risk Component — PD·LGD·CCF·M·RW)를 관리합니다. 일별 BS금액 입수 시 자동 적용됩니다.
+    </div>
+    <div class="g3">
+      <div class="card" style="border-top:3px solid var(--SA)">
+        <div class="card-hd"><div class="card-title" style="color:var(--SA)">SA RC — 위험가중치(전월)</div></div>
+        <div class="tbl"><table><thead><tr><th>세그먼트</th><th>EAD 입수</th><th>RW(%)</th><th>근거</th></tr></thead><tbody>
+          <tr><td>중앙정부·중앙은행</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="5" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">별표3 §1</td></tr>
+          <tr><td>지방정부·지자체</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="20" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">별표3 §2</td></tr>
+          <tr><td>공공기관(PSE)</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="20" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">별표3 §3</td></tr>
+          <tr><td>금융기관(SA)</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="20" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">별표3 §4</td></tr>
+          <tr><td>중소법인·SME</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="75" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">별표3 §7</td></tr>
+          <tr><td>기타 소매</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="75" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">별표3 §8</td></tr>
+          <tr><td>비주거용 부동산</td><td><span style="background:#fdf3e6;color:#5c3d0a;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td><td><input type="number" value="100" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2)" readonly/></td><td style="font-size:10px;color:var(--muted)">별표3 §10</td></tr>
+          <tr><td>주식 익스포저</td><td><span style="background:#fdf3e6;color:#5c3d0a;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td><td><input type="number" value="100" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2)" readonly/></td><td style="font-size:10px;color:var(--muted)">별표3 §15</td></tr>
+          <tr><td>기타자산</td><td><span style="background:#fdf3e6;color:#5c3d0a;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td><td><input type="number" value="100" style="width:60px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2)" readonly/></td><td style="font-size:10px;color:var(--muted)">별표3 §16</td></tr>
+        </tbody></table></div>
+        <div class="btn-grp" style="margin-top:8px"><button class="btn btn-sa btn-sm">SA RC 저장</button></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--FIRB)">
+        <div class="card-hd"><div class="card-title" style="color:var(--FIRB)">F-IRB RC — PD 전월세그먼트평균</div></div>
+        <div class="tbl"><table><thead><tr><th>세그먼트</th><th>EAD 입수</th><th>PD(%)</th><th>LGD(%)</th><th>K(%)</th></tr></thead><tbody>
+          <tr><td>국가</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="0.05" step="0.01" style="width:65px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">45%①</td><td style="font-family:'JetBrains Mono',monospace;color:var(--FIRB)">3.21%</td></tr>
+          <tr><td>금융기관</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="0.08" step="0.01" style="width:65px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">45%①</td><td style="font-family:'JetBrains Mono',monospace;color:var(--FIRB)">5.43%</td></tr>
+          <tr><td>대기업</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="0.82" step="0.01" style="width:65px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">45%①</td><td style="font-family:'JetBrains Mono',monospace;color:var(--FIRB)">14.67%</td></tr>
+          <tr><td>중소기업</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td><td><input type="number" value="1.42" step="0.01" style="width:65px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td><td style="font-size:10px;color:var(--muted)">45%①</td><td style="font-family:'JetBrains Mono',monospace;color:var(--FIRB)">19.52%</td></tr>
+          <tr><td>특수여신·SL</td><td><span style="background:#fdf3e6;color:#5c3d0a;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">○ 월말</span></td><td><input type="number" value="1.28" step="0.01" style="width:65px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg2)" readonly/></td><td style="font-size:10px;color:var(--muted)">45%①</td><td style="font-family:'JetBrains Mono',monospace;color:var(--muted)">18.24%</td></tr>
+        </tbody></table></div>
+        <div style="font-size:9px;color:var(--muted);margin-top:4px">① LGD 감독당국 고정값 — 수정 불가</div>
+        <div class="btn-grp" style="margin-top:6px"><button class="btn btn-firb btn-sm">F-IRB RC 저장</button></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--AIRB)">
+        <div class="card-hd"><div class="card-title" style="color:var(--AIRB)">A-IRB RC — PD·LGD·CCF·M 전월평균</div></div>
+        <div class="tbl"><table><thead><tr><th>세그먼트</th><th>EAD 입수</th><th>PD(%)</th><th>LGD(%)</th><th>CCF(%)</th><th>M(년)</th><th>K(%)</th></tr></thead><tbody>
+          <tr><td>주거용 부동산</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+            <td><input type="number" value="0.31" step="0.01" style="width:55px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td><input type="number" value="18.2" step="0.1" style="width:55px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td><input type="number" value="100" style="width:50px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td><input type="number" value="15.2" step="0.1" style="width:50px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--AIRB)">4.96%</td></tr>
+          <tr><td>회전형 적격소매</td><td><span style="background:#e6f7ed;color:#0a5c2e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">● 일별</span></td>
+            <td><input type="number" value="1.45" step="0.01" style="width:55px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td><input type="number" value="74.0" step="0.1" style="width:55px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td><input type="number" value="92" style="width:50px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td><input type="number" value="1.0" step="0.1" style="width:50px;padding:3px;font-size:11px;border:1px solid var(--bdr2);border-radius:3px;background:var(--bg)"/></td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--AIRB)">11.84%</td></tr>
+          
+        </tbody></table></div>
+        <div class="btn-grp" style="margin-top:8px"><button class="btn btn-airb btn-sm">A-IRB RC 저장</button></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="stab-panel" id="input-upload">
+    <div class="g3">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">전체 집계 업로드</div></div>
+        <div class="upload-zone" onclick="alert('파일 선택')">
+          <div class="uz-icon">📂</div>
+          <div class="uz-text">전체 집계 CSV 업로드</div>
+          <div class="uz-sub">컬럼: 연월, 총EAD, SA_RWA, FIRB_RWA, AIRB_RWA, 합계RWA, 밀도</div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--muted)">지원 형식: .csv, .xlsx | 최대 36개월 일괄 업로드</div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">계정과목별 업로드</div></div>
+        <div class="upload-zone" onclick="alert('파일 선택')">
+          <div class="uz-icon">📂</div>
+          <div class="uz-text">계정과목별 CSV 업로드</div>
+          <div class="uz-sub">컬럼: 연월, 계정구분, 세부계정, 방법론, EAD, RWA, PD, LGD</div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--muted)">계정구분: CORP / RETAIL / SOV / OTHER</div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">방법론별 업로드</div></div>
+        <div class="upload-zone" onclick="alert('파일 선택')">
+          <div class="uz-icon">📂</div>
+          <div class="uz-text">방법론별 CSV 업로드</div>
+          <div class="uz-sub">컬럼: 연월, 방법론(SA/FIRB/AIRB), EAD, RWA, PD, LGD, EAD_CCF, M</div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--muted)">방법론: SA / FIRB / AIRB 시트 분리 또는 단일 파일</div>
+      </div>
+    </div>
+    <div class="alert info"><div class="alert-icon">💡</div><div>업로드 후 자동 품질 검증(결측값·이상치·전월 대비 ±20% 초과)이 수행됩니다. 오류 발생 시 행별 오류 리포트를 제공합니다.</div></div>
+  </div>
+</div><!-- /pg-input -->
+
+
+<!-- ══ MODEL ══ -->
+<div class="pg" id="pg-model">
+  <div class="pg-title"><div><h2>모델 관리</h2><div class="sub">SA / F-IRB / A-IRB 독립 3-Layer 앙상블</div></div></div>
+
+  <div class="dbanner"><span>ℹ️</span>각 방법론(SA/F-IRB/A-IRB)은 독립적인 3-Layer 앙상블 모델을 사용하며, 경과율 α에 따라 실측·모델·거시 가중치가 자동 조정됩니다.</div>
+
+  <div class="g3">
+    <div class="card" style="border-top:3px solid var(--SA)">
+      <div class="card-hd"><div class="card-title" style="color:var(--SA)">Layer ① 실측 외삽층</div></div>
+      <div style="font-size:11px;color:var(--ink2);line-height:1.7;margin-bottom:8px">
+        일별 BS금액 × 전월 RC → 즉시 RWA 갱신.<br>
+        BS금액 미입수 세그먼트는 전기 동일 경과일 패턴으로 외삽.
+      </div>
+      <div class="tbl"><table>
+        <tbody>
+          <tr><td style="font-size:11px">가중치 공식</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--SA)">w_obs = min(0.95, 0.35+0.97×α²)</td></tr>
+          <tr><td style="font-size:11px">경과율 0% (월초)</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">w_obs ≈ 0.35</td></tr>
+          <tr><td style="font-size:11px">경과율 61.9% (현재)</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--SA)">w_obs ≈ 0.72</td></tr>
+          <tr><td style="font-size:11px">경과율 100% (월말)</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">w_obs = 0.95</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--FIRB)">
+      <div class="card-hd"><div class="card-title" style="color:var(--FIRB)">Layer ② 시계열 앙상블층</div></div>
+      <div style="font-size:11px;color:var(--ink2);line-height:1.7;margin-bottom:8px">
+        ARIMA(35%) + XGBoost(40%) + LSTM(25%) 가중 평균.<br>
+        Walk-Forward Cross Validation 5 Folds로 학습·검증.
+      </div>
+      <div class="tbl"><table>
+        <tbody>
+          <tr><td style="font-size:11px">가중치 공식</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--FIRB)">w_model = (1−w_obs)×0.69</td></tr>
+          <tr><td style="font-size:11px">ARIMA 내부 비중</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">35%</td></tr>
+          <tr><td style="font-size:11px">XGBoost 내부 비중</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">40%</td></tr>
+          <tr><td style="font-size:11px">LSTM 내부 비중</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">25%</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--AIRB)">
+      <div class="card-hd"><div class="card-title" style="color:var(--AIRB)">Layer ③ 거시경제 조정층</div></div>
+      <div style="font-size:11px;color:var(--ink2);line-height:1.7;margin-bottom:8px">
+        기준금리·환율·신용스프레드·연체율·신규여신 MTD<br>
+        5개 실시간 신호변수로 보정항 산출.
+      </div>
+      <div class="tbl"><table>
+        <tbody>
+          <tr><td style="font-size:11px">가중치 공식</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--AIRB)">w_macro = (1−w_obs)×0.31</td></tr>
+          <tr><td style="font-size:11px">기준금리</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">3.50% (동결)</td></tr>
+          <tr><td style="font-size:11px">USD/KRW</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">1,382원 ▲</td></tr>
+          <tr><td style="font-size:11px">최종 공식</td><td style="font-family:'JetBrains Mono',monospace;font-size:10px">RWA=w_obs·실측+w_model·앙상블+w_macro·Δ</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card" style="border-top:3px solid var(--SA)">
+      <div class="card-hd"><div class="card-title" style="color:var(--SA)">SA 모델 성능</div><span class="mtag sa">표준방법</span></div>
+      <div class="tbl"><table>
+        <thead><tr><th>구간</th><th>MAPE</th><th>신뢰도</th></tr></thead>
+        <tbody>
+          <tr><td>월초 D+1~5</td><td style="color:var(--danger)">3.5%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill l" style="width:38%"></div></div><div class="cbar-pct">38%</div></div></td></tr>
+          <tr><td>중순 D+11~15</td><td style="color:var(--warn)">1.6%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill m" style="width:72%"></div></div><div class="cbar-pct">72%</div></div></td></tr>
+          <tr><td>월말근 D+20+</td><td style="color:var(--good)">0.6%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:91%"></div></div><div class="cbar-pct">91%</div></div></td></tr>
+        </tbody>
+        <tfoot><tr><td>평균 MAPE</td><td>1.4%</td><td></td></tr></tfoot>
+      </table></div>
+      <div class="btn-grp" style="margin-top:10px"><button class="btn btn-sa btn-sm" onclick="runTrain('SA')">SA 재학습</button></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--FIRB)">
+      <div class="card-hd"><div class="card-title" style="color:var(--FIRB)">F-IRB 모델 성능</div><span class="mtag firb">기본내부등급</span></div>
+      <div class="tbl"><table>
+        <thead><tr><th>구간</th><th>MAPE</th><th>신뢰도</th></tr></thead>
+        <tbody>
+          <tr><td>월초 D+1~5</td><td style="color:var(--danger)">2.9%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill l" style="width:43%"></div></div><div class="cbar-pct">43%</div></div></td></tr>
+          <tr><td>중순 D+11~15</td><td style="color:var(--warn)">1.4%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill m" style="width:76%"></div></div><div class="cbar-pct">76%</div></div></td></tr>
+          <tr><td>월말근 D+20+</td><td style="color:var(--good)">0.5%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:92%"></div></div><div class="cbar-pct">92%</div></div></td></tr>
+        </tbody>
+        <tfoot><tr><td>평균 MAPE</td><td>1.1%</td><td></td></tr></tfoot>
+      </table></div>
+      <div class="btn-grp" style="margin-top:10px"><button class="btn btn-firb btn-sm" onclick="runTrain('FIRB')">F-IRB 재학습</button></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--AIRB)">
+      <div class="card-hd"><div class="card-title" style="color:var(--AIRB)">A-IRB 모델 성능</div><span class="mtag airb">고급내부등급</span></div>
+      <div class="tbl"><table>
+        <thead><tr><th>구간</th><th>MAPE</th><th>신뢰도</th></tr></thead>
+        <tbody>
+          <tr><td>월초 D+1~5</td><td style="color:var(--danger)">2.6%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill l" style="width:47%"></div></div><div class="cbar-pct">47%</div></div></td></tr>
+          <tr><td>중순 D+11~15</td><td style="color:var(--warn)">1.1%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill m" style="width:79%"></div></div><div class="cbar-pct">79%</div></div></td></tr>
+          <tr><td>월말근 D+20+</td><td style="color:var(--good)">0.4%</td><td><div class="cbar"><div class="cbar-track"><div class="cbar-fill h" style="width:94%"></div></div><div class="cbar-pct">94%</div></div></td></tr>
+        </tbody>
+        <tfoot><tr><td>평균 MAPE</td><td>0.9%</td><td></td></tr></tfoot>
+      </table></div>
+      <div class="btn-grp" style="margin-top:10px"><button class="btn btn-airb btn-sm" onclick="runTrain('AIRB')">A-IRB 재학습</button></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ VALIDATE ══ -->
+<div class="pg" id="pg-validate">
+  <div class="pg-title"><div><h2>검증·백테스트</h2><div class="sub">방법론별·계정과목별 속보치 사후 정확도</div></div></div>
+  <div class="g3">
+    <div class="metric"><div class="metric-top"><div class="metric-label">SA 평균 MAPE</div></div><div class="mv" style="color:var(--SA)">1.4%</div><div class="metric-sub">임계 2.5% 이내</div></div>
+    <div class="metric"><div class="metric-top"><div class="metric-label">F-IRB 평균 MAPE</div></div><div class="mv" style="color:var(--FIRB)">1.1%</div><div class="metric-sub">임계 2.5% 이내</div></div>
+    <div class="metric"><div class="metric-top"><div class="metric-label">A-IRB 평균 MAPE</div></div><div class="mv" style="color:var(--AIRB)">0.9%</div><div class="metric-sub">임계 2.5% 이내</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><div class="card-title">방법론별·계정과목별 사후 검증 이력</div></div>
+    <div class="tbl"><table>
+      <thead><tr><th>연월</th><th>방법론</th><th>계정과목</th><th>속보치</th><th>확정값</th><th>오차율</th><th>평가</th></tr></thead>
+      <tbody id="val-detail"></tbody>
+    </table></div>
+  </div>
+</div><!-- ══ CONFIG ══ -->
+<div class="pg" id="pg-config">
+  <div class="pg-title"><div><h2>시스템 설정</h2></div></div>
+  <div class="card">
+    <div class="card-hd"><div class="card-title">Anthropic API 키</div></div>
+    <div class="frow c2">
+      <div class="fg"><label>API Key</label><input type="password" id="apiKeyInput" placeholder="sk-ant-…"/></div>
+      <div class="fg"><label>모델</label><select><option>claude-sonnet-4-20250514</option></select></div>
+    </div>
+    <button class="btn btn-p btn-sm" onclick="saveKey()">저장</button>
+  </div>
+</div>
+
+</div><!-- /main-scroll -->
+
+<!-- AI FAB -->
+<button class="ai-fab" onclick="toggleAI()">💬<div class="fdot"></div></button>
+<div class="ai-drawer" id="aiDr">
+  <div class="ai-dhd">
+    <div class="ai-dleft"><div class="ai-live"></div><div><h4>RWA 분석 어시스턴트</h4><span id="aiSub">월중 모드 · SA/IRB 통합</span></div></div>
+    <button class="ai-x" onclick="toggleAI()">✕</button>
+  </div>
+  <div class="ai-body" id="aiBody">
+    <div class="ai-msg sys"><div class="ai-lbl">시스템</div>SA·F-IRB·A-IRB 및 계정과목별 속보치 시스템입니다. 방법론별 가중치, 피처 해석, 규제 기준 등을 도와드립니다.</div>
+    <div class="ai-msg bot"><div class="ai-lbl">분석 인사이트</div>5월말 속보 150.5조: SA 35.3조(82%), F-IRB 87.3조(85%), A-IRB 27.9조(87%, 소매 전용). F-IRB 특수여신·SL 신뢰도 78%가 주의 항목입니다.</div>
+  </div>
+  <div class="ai-ir">
+    <input class="ai-inp" id="aiInp" placeholder="질문 입력…" onkeydown="if(event.key==='Enter')sendAI()"/>
+    <button class="ai-send" onclick="sendAI()">전송</button>
+  </div>
+</div>
+
+<script>
+var curMode='M';
+
+/* 시계 */
+function tick(){
+  var n=new Date();
+  document.getElementById('clockEl').textContent=
+    n.getFullYear()+'.'+(n.getMonth()+1).toString().padStart(2,'0')+'.'+
+    n.getDate().toString().padStart(2,'0')+' '+n.toTimeString().slice(0,5);
+}
+tick();setInterval(tick,30000);
+
+/* 서브탭 */
+function switchStab(page,panel,el){
+  var prefix = page+'-';
+  var bar = el.closest('.stab-bar');
+  if(!bar) return;
+  bar.querySelectorAll('.stab').forEach(function(s){s.classList.remove('active');});
+  el.classList.add('active');
+  var pg = document.getElementById('pg-'+page);
+  if(pg){
+    pg.querySelectorAll('.stab-panel').forEach(function(p){
+      p.classList.remove('active');
+      p.style.display='none';
+    });
+  }
+  var target = document.getElementById(prefix+panel);
+  if(target){
+    target.classList.add('active');
+    target.style.display='flex';
+    target.style.flexDirection='column';
+    target.style.gap='14px';
+  }
+}
+
+/* 가중치 */
+function calcW(a,base){
+  var wO=Math.min(0.95,base+0.97*a*a);
+  return{wO:wO,wM:(1-wO)*.69,wC:(1-wO)*.31};
+}
+
+function recalcM(){
+  var p=parseInt(document.getElementById('M-inputDay').value)||13;
+  var t=parseInt(document.getElementById('M-inputTotal').value)||21;
+  var a=Math.min(1,p/t);
+  var w=calcW(a,0.35);
+  var wo=Math.round(w.wO*100),wm=Math.round(w.wM*100),wc=Math.round(w.wC*100);
+  var pct=(a*100).toFixed(1);
+  var conf=Math.min(95,Math.round(45+50*a));
+  /* dash */
+  document.getElementById('M-alpha').textContent=pct+'%';
+  document.getElementById('M-wO').textContent=wo+'%';
+  document.getElementById('M-wM').textContent=wm+'%';
+  document.getElementById('M-wC').textContent=wc+'%';
+  document.getElementById('M-dayNum').textContent=p;
+  document.getElementById('M-dayBar').style.width=Math.min(99,a*100)+'%';
+  document.getElementById('M-conf').textContent=conf+'%';
+  /* flash */
+  document.getElementById('alphChip').textContent='α='+pct+'%';
+  document.getElementById('fwO').textContent=wo+'%';
+  document.getElementById('fwM').textContent=wm+'%';
+  document.getElementById('fwC').textContent=wc+'%';
+  document.getElementById('bwO').style.width=wo+'%';
+  document.getElementById('bwM').style.width=wm+'%';
+  document.getElementById('bwC').style.width=wc+'%';
+  document.getElementById('rh-conf').textContent=conf+'%';
+  var hw=Math.max(0.008,0.035-0.027*a);
+  var base=150.5,hwv=parseFloat((base*hw).toFixed(1));
+  document.getElementById('rh-ci').textContent=(base-hwv).toFixed(1)+' ~ '+(base+hwv).toFixed(1)+'조';
+  document.getElementById('rh-hw').textContent='±'+hwv+'조 (±'+(hw*100).toFixed(2)+'%)';
+  document.getElementById('msDesc').textContent='기준: 2026년 4월 확정 → 5월말 추정 | D+'+p+' / '+t+'영업일 | α='+pct+'%';
+}
+
+
+/* 모드 전환 */
+function setMode(m){
+  curMode=m;
+  document.body.className='mode-'+m;
+  document.getElementById('btnM').classList.toggle('active',m==='M');
+  document.getElementById('btnQ').classList.toggle('active',m==='Q');
+  document.getElementById('modeLabel').textContent='월중 모드';
+  document.getElementById('aiSub').textContent='월중'+' 모드 · SA/IRB 통합';
+  /* dash 전환 */
+  var dM=document.getElementById('dash-M'),dQ=  dM.style.display=m==='M'?'flex':'none';
+  dQ.style.display=m==='Q'?'flex':'none';
+  /* flash 조건 */
+  document.getElementById('fc-M').style.display=m==='M'?'block':'none';
+  document.getElementById('flash-h2').textContent='월중 속보치 산출';
+  document.getElementById('fguide-M').style.display=m==='M'?'flex':'none';
+  document.getElementById('fguide-Q').style.display=m==='Q'?'flex':'none';
+  /* result hero */
+  document.getElementById('rh-label').textContent='5월말 신용RWA 속보치 (통합)';
+  document.getElementById('rh-val').innerHTML='150.5<span class="rh-unit">조원</span>';
+  document.getElementById('rh-delta').innerHTML='전월(4월) 147.6조 대비 <strong style="color:var(--danger)">▲+1.96% (+2.9조)</strong>';
+  recalcM();
+}
+
+/* NAV */
+document.querySelectorAll('.ntab[data-page]').forEach(function(el){
+  el.addEventListener('click',function(){
+    document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('active');});
+    el.classList.add('active');
+    document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
+    document.getElementById('pg-'+el.dataset.page).classList.add('active');
+    document.getElementById('mainScroll').scrollTop=0;
+  });
+});
+function navTo(pg){
+  document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('active');});
+  var t=document.querySelector('.ntab[data-page="'+pg+'"]');
+  if(t)t.classList.add('active');
+  document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('pg-'+pg).classList.add('active');
+  document.getElementById('mainScroll').scrollTop=0;
+}
+
+/* 로딩 */
+async function animate(msg,steps){
+  var ov=document.getElementById('ldOv');
+  document.getElementById('ldMsg').textContent=msg;
+  ov.classList.add('show');
+  for(var i=0;i<steps.length;i++){
+    document.getElementById('ldBar').style.width=steps[i][0]+'%';
+    document.getElementById('ldSub').textContent=steps[i][1];
+    await new Promise(function(r){setTimeout(r,340);});
+  }
+  ov.classList.remove('show');
+  document.getElementById('ldBar').style.width='0%';
+}
+async function runFlash(){
+  var lbl=curMode==='M'?'월말 속보치 산출':'분기말 속보치 산출';
+  await animate(lbl,[
+    [10,'데이터 로드…'],[20,'경과율 α 산출…'],
+    [32,'SA 모델 추정…'],[45,'F-IRB 모델 추정…'],
+    [58,'A-IRB 모델 추정…'],[68,'계정과목별 분해…'],
+    [78,'앙상블 혼합…'],[88,'Bootstrap CI…'],
+    [95,'방법론별 정합성 검증…'],[100,'완료']
+  ]);
+  navTo('flash');
+}
+async function runTrain(method){
+  await animate((method||'전체')+' 모델 재학습',[
+    [15,'데이터 전처리…'],[30,'피처 엔지니어링…'],
+    [50,'ARIMA 학습…'],[65,'XGBoost 학습…'],
+    [80,'LSTM 에폭…'],[92,'Walk-Forward CV…'],[100,'완료']
+  ]);
+}
+
+/* 히스토리 데이터 */
+var aggM=[
+  {k:'2026.04',e:'228.5조',sa:'34.6',fi:'85.9',ai:'27.2',tot:'147.6',d:'64.6%'},
+  {k:'2026.03',e:'224.7조',sa:'34.1',fi:'84.8',ai:'26.9',tot:'145.7',d:'64.9%'},
+  {k:'2026.02',e:'221.9조',sa:'33.7',fi:'83.9',ai:'26.7',tot:'144.2',d:'65.0%'},
+  {k:'2026.01',e:'219.8조',sa:'33.3',fi:'83.1',ai:'26.5',tot:'142.8',d:'65.0%'},
+  {k:'2025.12',e:'218.2조',sa:'33.0',fi:'82.5',ai:'26.4',tot:'141.8',d:'65.0%'},
+  {k:'2025.11',e:'216.5조',sa:'32.7',fi:'82.0',ai:'26.3',tot:'140.9',d:'65.1%'},
+];
+var methM=[
+  {k:'2026.04',se:'53.4조',sr:'34.6조',sd:'64.79%',fe:'598.2조',fr:'85.9조',fd:'14.36%',ae:'642.0조',ar:'27.2조',ad:'4.24%',t:'147.6조'},
+  {k:'2026.03',se:'52.8조',sr:'34.1조',sd:'64.58%',fe:'590.1조',fr:'84.8조',fd:'14.37%',ae:'636.7조',ar:'26.9조',ad:'4.22%',t:'145.7조'},
+  {k:'2026.02',se:'52.2조',sr:'33.7조',sd:'64.56%',fe:'583.4조',fr:'83.9조',fd:'14.38%',ae:'632.3조',ar:'26.7조',ad:'4.22%',t:'144.2조'},
+];
+
+function fillAgg(){
+  var tbM=document.getElementById('hist-agg-M');
+  aggM.forEach(function(r){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+r.k+'</td><td>'+r.e+'</td><td>'+r.sa+'조</td><td>'+r.fi+'조</td><td>'+r.ai+'조</td><td style="font-weight:600">'+r.tot+'조</td><td>'+r.d+'</td>';
+    tbM.appendChild(tr);
+  });
+  var tbM2=document.getElementById('hist-meth');
+  methM.forEach(function(r){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+r.k+'</td><td>'+r.se+'</td><td>'+r.sr+'</td><td>'+r.sd+'</td><td>'+r.fe+'</td><td>'+r.fr+'</td><td>'+r.fd+'</td><td>'+r.ae+'</td><td>'+r.ar+'</td><td>'+r.ad+'</td><td style="font-weight:600">'+r.t+'</td>';
+    tbM2.appendChild(tr);
+  });
+}
+fillAgg();
+
+/* 검증 테이블 */
+var valData=[
+  {k:'2026.04',mth:'<span class=\"mtag firb\">F-IRB</span>',acct:'대기업',f:'42.1조',c:'43.0조',e:'2.1%',g:true},
+  {k:'2026.04',mth:'<span class=\"mtag firb\">F-IRB</span>',acct:'중소기업',f:'21.8조',c:'22.4조',e:'2.8%',g:true},
+  {k:'2026.04',mth:'<span class=\"mtag sa\">SA</span>',acct:'기타소매',f:'7.9조',c:'8.1조',e:'2.5%',g:true},
+  {k:'2026.03',mth:'<span class=\"mtag airb\">A-IRB</span>',acct:'주거용부동산',f:'23.9조',c:'24.2조',e:'1.3%',g:true},
+  {k:'2026.03',mth:'<span class=\"mtag sa\">SA</span>',acct:'국가·공공',f:'18.1조',c:'18.4조',e:'1.6%',g:true},
+  {k:'2025.11',mth:'<span class=\"mtag firb\">F-IRB</span>',acct:'특수여신·SL',f:'6.8조',c:'7.4조',e:'1.8%',g:false},
+];
+var vt=document.getElementById('val-detail');
+valData.forEach(function(r){
+  var tr=document.createElement('tr');
+  var ec=parseFloat(r.e)>1.5?'var(--warn)':'var(--good)';
+  var chip=r.g?'<span class="chip good">우수</span>':'<span class="chip warn">주의</span>';
+  tr.innerHTML='<td>'+r.k+'</td><td>'+r.mth+'</td><td>'+r.acct+'</td><td>'+r.f+'</td><td>'+r.c+'</td>'
+    +'<td style="color:'+ec+';font-family:\'JetBrains Mono\',monospace">'+r.e+'</td><td>'+chip+'</td>';
+  vt.appendChild(tr);
+});
+
+/* AI */
+function toggleAI(){document.getElementById('aiDr').classList.toggle('open');}
+var savedKey='';
+function saveKey(){savedKey=document.getElementById('apiKeyInput').value;alert('저장되었습니다.');}
+async function sendAI(){
+  var inp=document.getElementById('aiInp');
+  var msg=inp.value.trim();if(!msg)return;
+  inp.value='';
+  var body=document.getElementById('aiBody');
+  var uDiv=document.createElement('div');
+  uDiv.className='ai-msg usr';
+  uDiv.innerHTML='<div class="ai-lbl">사용자</div>'+msg;
+  body.appendChild(uDiv);
+  var tDiv=document.createElement('div');
+  tDiv.className='ai-msg bot';
+  tDiv.textContent='분석 중…';
+  body.appendChild(tDiv);
+  body.scrollTop=body.scrollHeight;
+  var ctx = '월중모드 D+13 α=61.9% 별표3 기준 150.5조. SA 35.3·F-IRB 87.3·A-IRB 27.9(소매전용).';
+  var sys='당신은 신용RWA 속보치 SA/F-IRB/A-IRB 계정과목별 전문 어시스턴트. '+ctx+' 바젤III IRB 방법론, 한국 FSS 규제 전문. 한국어 간결하게.';
+  try{
+    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:msg}]})});
+    var d=await res.json();
+    tDiv.innerHTML='<div class="ai-lbl">어시스턴트</div>'+(d?.content?.[0]?.text||'응답 없음');
+  }catch(e){
+    tDiv.innerHTML='<div class="ai-lbl" style="color:var(--danger)">오류</div>⚙ 설정에서 API 키를 입력해 주세요.';
+  }
+  body.scrollTop=body.scrollHeight;
+}
+
+
+/* ════ 별표3 세그먼트 맵 ════ */
+var SEG_NAME = {
+  'SA_CNTL':'중앙정부·중앙은행','SA_LGRV':'지방정부·지자체',
+  'SA_PSE':'공공기관(PSE)','SA_BANK':'금융기관(SA)',
+  'SA_CORP':'중소법인·SME(SA)','SA_RETL':'기타소매(SA)',
+  'SA_RESI':'주거용부동산(SA)','SA_NRRE':'비주거용부동산(SA)','SA_OTHR':'기타자산(SA)',
+  'FIRB_SVRN':'국가(F-IRB)','FIRB_BANK':'금융기관(F-IRB)',
+  'FIRB_CORP_LG':'대기업(F-IRB)','FIRB_CORP_SM':'중소기업(F-IRB)','FIRB_CORP_SL':'특수여신·SL(F-IRB)',
+  'AIRB_RETL_RE':'소매·주거용부동산(A-IRB)','AIRB_RETL_QR':'소매·회전형적격(A-IRB)',
+  'AIRB_RETL_OT':'소매·기타(A-IRB)','SA_EQU':'주식익스포저(SA)'
+};
+var SEG_RC = {
+  'SA_CNTL':0.05,'SA_LGRV':0.20,'SA_PSE':0.20,'SA_BANK':0.20,
+  'SA_CORP':0.75,'SA_RETL':0.75,'SA_RESI':0.35,'SA_NRRE':1.00,'SA_OTHR':1.00,
+  'FIRB_SVRN':0.0321,'FIRB_BANK':0.0543,
+  'FIRB_CORP_LG':0.1467,'FIRB_CORP_SM':0.1952,'FIRB_CORP_SL':0.1824,
+  'AIRB_RETL_RE':0.0496,'AIRB_RETL_QR':0.1184,'AIRB_RETL_OT':0.0800,'SA_EQU':1.00
+};
+var SEG_DAILY = {
+  'SA_CNTL':true,'SA_LGRV':true,'SA_PSE':true,'SA_BANK':true,
+  'SA_CORP':true,'SA_RETL':true,
+  'FIRB_SVRN':true,'FIRB_BANK':true,'FIRB_CORP_LG':true,'FIRB_CORP_SM':true,
+  'AIRB_RETL_RE':true,'AIRB_RETL_QR':true
+};
+var bsUploadData = [];
+
+/* BS 내부 서브탭 전환 */
+function switchBSTab(panelId, el) {
+  var bar = document.getElementById('bs-stab-bar');
+  if (bar) bar.querySelectorAll('.stab').forEach(function(s){ s.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  ['bs-screen','bs-csv'].forEach(function(id){
+    var p = document.getElementById(id);
+    if (p) p.style.display = (id === panelId) ? 'flex' : 'none';
+  });
+}
+
+/* 기준일 업데이트 */
+function updateBSDate() {
+  var d = document.getElementById('bs-date');
+  if (!d) return;
+  var dt = new Date(d.value);
+  var chip = document.getElementById('bs-date-chip');
+  if (chip) chip.textContent = dt.getFullYear() + '년 ' + (dt.getMonth()+1) + '월 ' + dt.getDate() + '일';
+  calcTotals();
+}
+
+/* BS금액 변경 → 즉시 RWA 계산 */
+function onBSChange(inp) {
+  var seg  = inp.dataset.seg;
+  var rc   = parseFloat(inp.closest('tr').dataset.rc) || 0;
+  var prev = parseInt(inp.closest('tr').dataset.prev) || 0;
+  var cur  = parseInt(inp.value) || 0;
+  var diff = cur - prev;
+  var rwa  = Math.round(cur * rc);
+  var dRwa = rwa - Math.round(prev * rc);
+
+  var setEl = function(id, txt, col) {
+    var e = document.getElementById(id);
+    if (!e) return;
+    e.textContent = txt;
+    if (col) e.style.color = col;
+  };
+
+  setEl('diff-' + seg,
+    (diff >= 0 ? '+' : '') + diff.toLocaleString(),
+    diff > 0 ? 'var(--danger)' : diff < 0 ? 'var(--good)' : 'var(--muted)');
+  setEl('rwa-' + seg, rwa.toLocaleString());
+  setEl('drwa-' + seg,
+    (dRwa >= 0 ? '▲+' : '▼') + Math.abs(dRwa).toLocaleString(),
+    dRwa > 0 ? 'var(--danger)' : dRwa < 0 ? 'var(--good)' : 'var(--muted)');
+
+  calcTotals();
+}
+
+/* 합계 행 계산 */
+function calcTotals() {
+  var rows = document.querySelectorAll('#bs-tbody tr[data-seg]:not(.bs-nomatch)');
+  var tp = 0, tc = 0, trwa = 0, prwa = 0;
+  rows.forEach(function(row) {
+    var inp = row.querySelector('.bs-inp:not([disabled])');
+    if (!inp) return;
+    var rc   = parseFloat(row.dataset.rc) || 0;
+    var prev = parseInt(row.dataset.prev) || 0;
+    var cur  = parseInt(inp.value) || 0;
+    tp   += prev;
+    tc   += cur;
+    trwa += Math.round(cur * rc);
+    prwa += Math.round(prev * rc);
+  });
+  var dRwa = trwa - prwa;
+  var dDiff = tc - tp;
+
+  var setEl = function(id, txt, col) {
+    var e = document.getElementById(id);
+    if (!e) return;
+    e.textContent = txt;
+    if (col) e.style.color = col;
+  };
+
+  setEl('bs-total-prev', tp.toLocaleString() + '억');
+  setEl('bs-total-cur',  tc.toLocaleString() + '억');
+  setEl('bs-total-diff',
+    (dDiff >= 0 ? '+' : '') + dDiff.toLocaleString() + '억',
+    dDiff > 0 ? 'var(--danger)' : dDiff < 0 ? 'var(--good)' : 'var(--muted)');
+  setEl('bs-total-rwa',  (trwa/10000).toFixed(1) + '조 (' + trwa.toLocaleString() + '억)');
+  setEl('bs-total-drwa',
+    (dRwa >= 0 ? '▲+' : '▼') + Math.abs(dRwa).toLocaleString() + '억',
+    dRwa > 0 ? 'var(--danger)' : dRwa < 0 ? 'var(--good)' : 'var(--muted)');
+}
+
+/* ⚡ RWA 즉시 산출 */
+function calcDailyRWA() {
+  document.querySelectorAll('#bs-tbody .bs-inp:not([disabled])').forEach(function(inp){ onBSChange(inp); });
+  alert('일별 BS금액 기준 RWA 속보치 산출 완료.\n속보치 탭에 반영되었습니다.');
+}
+
+/* 💾 저장 → 이력 테이블 */
+function saveDailyBS() {
+  var date = (document.getElementById('bs-date') || {value:'2026-05-19'}).value;
+  var rows = [];
+  document.querySelectorAll('#bs-tbody .bs-inp:not([disabled])').forEach(function(inp){
+    if (inp.value) rows.push({date:date, seg:inp.dataset.seg, bs:inp.value});
+  });
+  buildBSHistory(date, rows);
+  alert('저장 완료. 당월 일별 이력에 반영되었습니다.');
+}
+
+/* 이력 테이블 행 생성 */
+function buildBSHistory(date, rowData) {
+  var rcMap = {
+    'SA_CNTL':0.05,'SA_LGRV':0.20,'SA_PSE':0.20,'SA_BANK':0.20,
+    'FIRB_SVRN':0.0321,'FIRB_BANK':0.0543,
+    'FIRB_CORP_LG':0.1467,'FIRB_CORP_SM':0.1952,
+    'SA_CORP':0.75,'AIRB_RETL_RE':0.0496,'AIRB_RETL_QR':0.1184,'SA_RETL':0.75
+  };
+  var vals = {};
+  rowData.forEach(function(r){ vals[r.seg] = parseInt(r.bs) || 0; });
+  var totalRwa = 0;
+  Object.keys(rcMap).forEach(function(k){ totalRwa += Math.round((vals[k]||0)*rcMap[k]); });
+
+  var tb = document.getElementById('bs-hist-tbody');
+  if (!tb) return;
+  var existing = tb.querySelector('tr[data-date="' + date + '"]');
+  if (existing) existing.remove();
+
+  var dt = new Date(date);
+  var bday = (document.getElementById('bs-bday') || {value:13}).value;
+  var tr = document.createElement('tr');
+  tr.dataset.date = date;
+
+  var fmt = function(k){ return (vals[k]||0) ? (vals[k]).toLocaleString() : '—'; };
+  var td = function(v,col){ return '<td style="font-family:\'JetBrains Mono\',monospace;font-size:10px;text-align:right'+(col?';color:'+col:'')+'">'+(v||'—')+'</td>'; };
+
+  tr.innerHTML =
+    '<td style="font-family:\'JetBrains Mono\',monospace;font-size:11px">D+' + bday + '</td>' +
+    '<td style="font-size:11px">' + (dt.getMonth()+1) + '/' + dt.getDate() + '</td>' +
+    td(fmt('SA_CNTL'),   'var(--SA)') + td(fmt('SA_LGRV'),   'var(--SA)') +
+    td(fmt('SA_PSE'),    'var(--SA)') + td(fmt('SA_BANK'),   'var(--SA)') +
+    td(fmt('FIRB_SVRN'), 'var(--FIRB)') + td(fmt('FIRB_BANK'),'var(--FIRB)') +
+    td(fmt('FIRB_CORP_LG'),'var(--FIRB)') + td(fmt('FIRB_CORP_SM'),'var(--FIRB)') +
+    td(fmt('SA_CORP'),   'var(--SA)') +
+    td(fmt('AIRB_RETL_RE'),'var(--AIRB)') + td(fmt('AIRB_RETL_QR'),'var(--AIRB)') +
+    td(fmt('SA_RETL'),   'var(--SA)') +
+    '<td style="font-family:\'JetBrains Mono\',monospace;font-size:11px;text-align:right;font-weight:700;color:var(--M)">' +
+    (totalRwa/10000).toFixed(1) + '조</td>' +
+    '<td><span class="chip good">완료</span></td>';
+
+  tb.insertBefore(tr, tb.firstChild);
+}
+
+/* 초기 이력 데이터 */
+(function initBSHistory(){
+  var hist = [
+    {d:'2026-05-02',bd:1, c1:420000,c2:360000,c3:1280000,c4:820000,c5:620000,c6:1084000,c7:2870000,c8:1580000,c9:530000,c10:4862000,c11:285000,c12:1078000},
+    {d:'2026-05-07',bd:4, c1:424000,c2:363000,c3:1292000,c4:827000,c5:626000,c6:1093000,c7:2874000,c8:1584000,c9:532000,c10:4865000,c11:286000,c12:1081000},
+    {d:'2026-05-08',bd:5, c1:426000,c2:365000,c3:1297000,c4:830000,c5:629000,c6:1097000,c7:2876000,c8:1585000,c9:533000,c10:4867000,c11:286000,c12:1082000},
+    {d:'2026-05-09',bd:6, c1:427000,c2:366000,c3:1299000,c4:832000,c5:631000,c6:1099000,c7:2877000,c8:1586000,c9:533000,c10:4869000,c11:287000,c12:1082000},
+    {d:'2026-05-12',bd:7, c1:429000,c2:368000,c3:1303000,c4:835000,c5:634000,c6:1103000,c7:2879000,c8:1588000,c9:534000,c10:4871000,c11:287000,c12:1083000},
+    {d:'2026-05-13',bd:8, c1:430000,c2:369000,c3:1306000,c4:837000,c5:636000,c6:1105000,c7:2880000,c8:1589000,c9:534000,c10:4873000,c11:287000,c12:1084000},
+    {d:'2026-05-14',bd:9, c1:432000,c2:371000,c3:1310000,c4:840000,c5:638000,c6:1109000,c7:2882000,c8:1591000,c9:535000,c10:4876000,c11:288000,c12:1085000},
+    {d:'2026-05-15',bd:10,c1:434000,c2:373000,c3:1315000,c4:843000,c5:640000,c6:1113000,c7:2884000,c8:1593000,c9:536000,c10:4879000,c11:288000,c12:1087000},
+    {d:'2026-05-16',bd:11,c1:436000,c2:375000,c3:1318000,c4:846000,c5:642000,c6:1116000,c7:2886000,c8:1595000,c9:537000,c10:4883000,c11:288000,c12:1088000},
+    {d:'2026-05-18',bd:12,c1:438000,c2:377000,c3:1322000,c4:849000,c5:638000,c6:1119000,c7:2888000,c8:1597000,c9:538000,c10:4887000,c11:289000,c12:1090000},
+    {d:'2026-05-19',bd:13,c1:441000,c2:376000,c3:1320000,c4:845000,c5:641000,c6:1121000,c7:2890000,c8:1601000,c9:540000,c10:4890000,c11:289000,c12:1092000},
+  ];
+  var rcMap = {c1:0.05,c2:0.20,c3:0.20,c4:0.20,c5:0.0321,c6:0.0543,c7:0.1467,c8:0.1952,c9:0.75,c10:0.0496,c11:0.1184,c12:0.75};
+  var tb = document.getElementById('bs-hist-tbody');
+  if (!tb) return;
+  hist.slice().reverse().forEach(function(r){
+    var totalRwa = 0;
+    Object.keys(rcMap).forEach(function(k){ totalRwa += Math.round((r[k]||0)*rcMap[k]); });
+    var dt = new Date(r.d);
+    var mm = dt.getMonth()+1, dd = dt.getDate();
+    var tr = document.createElement('tr');
+    tr.dataset.date = r.d;
+    var td = function(v,col){ return '<td style="font-family:\'JetBrains Mono\',monospace;font-size:10px;text-align:right'+(col?';color:'+col:'')+'">'+(v?v.toLocaleString():'—')+'</td>'; };
+    tr.innerHTML =
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:11px">D+'+r.bd+'</td>' +
+      '<td style="font-size:11px">'+mm+'/'+dd+'</td>' +
+      td(r.c1,'var(--SA)') + td(r.c2,'var(--SA)') + td(r.c3,'var(--SA)') + td(r.c4,'var(--SA)') +
+      td(r.c5,'var(--FIRB)') + td(r.c6,'var(--FIRB)') + td(r.c7,'var(--FIRB)') + td(r.c8,'var(--FIRB)') +
+      td(r.c9,'var(--SA)') + td(r.c10,'var(--AIRB)') + td(r.c11,'var(--AIRB)') + td(r.c12,'var(--SA)') +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:11px;text-align:right;font-weight:700;color:var(--M)">'+(totalRwa/10000).toFixed(1)+'조</td>' +
+      '<td><span class="chip good">완료</span></td>';
+    tb.appendChild(tr);
+  });
+  calcTotals();
+})();
+
+/* CSV 파싱 */
+function parseCSV(text){
+  var lines = text.trim().split('\n');
+  var headers = lines[0].split(',').map(function(h){ return h.trim().replace(/"/g,''); });
+  return lines.slice(1).filter(function(l){ return l.trim(); }).map(function(l){
+    var cols = l.split(',').map(function(c){ return c.trim().replace(/"/g,''); });
+    var obj = {};
+    headers.forEach(function(h,i){ obj[h] = cols[i]; });
+    return obj;
+  });
+}
+
+function renderPreview(rows){
+  var tb = document.getElementById('bs-preview-tbody');
+  if (!tb) return;
+  tb.innerHTML = '';
+  rows.forEach(function(r){
+    var code = r['세그먼트코드'] || r['segment'] || '';
+    var rc   = SEG_RC[code] || 0;
+    var bs   = parseInt(r['BS금액'] || r['bs'] || 0);
+    var rwa  = Math.round(bs * rc);
+    var valid = code in SEG_RC;
+    var isDly = SEG_DAILY[code] || false;
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + (r['날짜']||'') + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:11px">' + code + '</td>' +
+      '<td>' + (SEG_NAME[code]||'—') + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;text-align:right">' + bs.toLocaleString() + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:10px">' + ((rc*100).toFixed(2)) + '%</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;text-align:right;color:var(--M);font-weight:600">' + (rwa/10000).toFixed(2) + '조</td>' +
+      '<td>' + (valid ? (isDly ? '<span class="chip good">유효</span>' : '<span class="chip warn">월말세그먼트</span>') : '<span style="color:var(--danger)">✗ 코드오류</span>') + '</td>';
+    tb.appendChild(tr);
+  });
+  var pc = document.getElementById('bs-preview-card');
+  if (pc) pc.style.display = 'block';
+}
+
+function handleBSFile(input){
+  var f = input.files[0]; if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(e){ bsUploadData = parseCSV(e.target.result); renderPreview(bsUploadData); };
+  reader.readAsText(f, 'UTF-8');
+}
+function handleBSDrop(e){
+  e.preventDefault();
+  var f = e.dataTransfer.files[0]; if (!f) return;
+  var inp = document.getElementById('bs-file-input');
+  try { var dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; } catch(ex){}
+  handleBSFile(inp);
+}
+function confirmBSUpload(){
+  alert('BS금액 ' + bsUploadData.length + '건 적용 완료.');
+  var pc = document.getElementById('bs-preview-card');
+  if (pc) pc.style.display = 'none';
+}
+function cancelBSUpload(){
+  bsUploadData = [];
+  var pc = document.getElementById('bs-preview-card');
+  if (pc) pc.style.display = 'none';
+}
+
+/* 템플릿 다운로드 (Blob URL 방식) */
+function downloadBSTemplate(){
+  var rows = [
+    ['날짜','세그먼트코드','BS금액(억원)','자산분류(별표3)','방법론','기준RC','일별입수'],
+    ['2026-05-19','SA_CNTL',    '441000','중앙정부·중앙은행', 'SA',    'RW 0~20%','●'],
+    ['2026-05-19','SA_LGRV',    '376000','지방정부·지자체',   'SA',    'RW 20%',  '●'],
+    ['2026-05-19','SA_PSE',    '1320000','공공기관(PSE)',      'SA',    'RW 20%',  '●'],
+    ['2026-05-19','SA_BANK',    '845000','금융기관(SA)',       'SA',    'RW 20%',  '●'],
+    ['2026-05-19','SA_CORP',    '547000','중소법인·SME',       'SA',    'RW 75%',  '●'],
+    ['2026-05-19','SA_RETL',   '1106000','기타 소매',          'SA',    'RW 75%',  '●'],
+    ['2026-05-19','SA_RESI',    '350000','주거용 부동산(SA)',  'SA',    'RW 35%',  '○월말'],
+    ['2026-05-19','SA_NRRE',    '248000','비주거용 부동산',    'SA',    'RW 100%', '○월말'],
+    ['2026-05-19','SA_OTHR',    '740000','기타자산',           'SA',    'RW 100%', '○월말'],
+    ['2026-05-19','FIRB_SVRN',  '641000','국가(F-IRB)',        'F-IRB', 'K=3.21%', '●'],
+    ['2026-05-19','FIRB_BANK', '1121000','금융기관(F-IRB)',    'F-IRB', 'K=5.43%', '●'],
+    ['2026-05-19','FIRB_CORP_LG','2934000','대기업',           'F-IRB', 'K=14.67%','●'],
+    ['2026-05-19','FIRB_CORP_SM','1621000','중소기업',         'F-IRB', 'K=19.52%','●'],
+    ['2026-05-19','FIRB_CORP_SL', '521000','특수여신·SL',      'F-IRB', 'K=18.24%','○월말'],
+    ['2026-05-19','AIRB_RETL_RE','4912000','소매·주거용부동산','A-IRB', 'K=4.96%', '●'],
+    ['2026-05-19','AIRB_RETL_QR', '289000','소매·회전형적격', 'A-IRB', 'K=11.84%','●'],
+    ['2026-05-19','AIRB_RETL_OT', '520000','소매·기타',       'A-IRB', 'K=8.00%', '○월말'],
+    ['2026-05-19','SA_EQU',       '123000','주식 익스포저',    'SA',    'RW 100%', '○월말'],
+  ];
+  var csv = '\uFEFF' + rows.map(function(r){ return r.join(','); }).join('\r\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url;
+  a.download = 'bs_template_byTbl3_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+}
+
+recalcM();
+</script>
+</body>
+</html>
